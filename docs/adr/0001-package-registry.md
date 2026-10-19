@@ -1,7 +1,6 @@
 # 0001. A package registry for ShortArrow's projects
 
 - Status: Draft
-- Date: 2026-10-20
 
 ## Context
 
