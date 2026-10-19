@@ -7,8 +7,8 @@
 This repository serves packages that several projects depend on, and
 its design is settled one decision at a time, often while another
 project waits on the answer. The reasons for each decision, and the
-alternatives turned down, need one place that does not move once the
-decision is made.
+alternatives turned down, need one place a reader can trust to be
+current.
 
 ## Decision
 
@@ -19,27 +19,33 @@ decision is made.
   followed by one field, `- Status:`, and no date: git history records
   when a record was written and changed.
 - The status is one of:
-  - `Draft`: still being decided, and edited in place.
-  - `Accepted`: decided. Its text is frozen.
-  - `Superseded by NNNN`: replaced by a later record.
-  - `Withdrawn`: abandoned without a replacement.
-- The sections are `Context`, `Decision`, `Open questions`,
-  `Consequences` and `Verification`, in that order. `Verification` holds
-  measurements with the date and conditions they were taken under, and
-  is left out when there are none.
+  - `Draft`: still being decided.
+  - `Accepted`: decided.
+  - `Withdrawn`: its subject was dropped, with nothing in its place.
+- The sections are `Context`, `Decision`, `Alternatives`,
+  `Open questions`, `Consequences` and `Verification`, in that order. A
+  section with nothing to hold is left out. `Verification` holds
+  measurements with the date and conditions they were taken under.
 - A record moves from `Draft` to `Accepted` only when `Open questions`
-  is empty, and the section is then removed.
-- An accepted record changes only in its `Status` line, and in fixes to
-  typos and broken links that leave its meaning as it was. A changed
-  decision is a new record that names the one it replaces, and that
-  record's status becomes `Superseded by` the new number.
+  is empty.
+- When a decision changes, its record is rewritten in place, whatever
+  its status, so that it states the decision now in force. The design it
+  replaces moves to `Alternatives`, with the reason it was dropped.
 - A record holds why a decision was made and why the alternatives were
   not. How the repository works today is described in the README and in
   the code, which follow every change.
 
+## Alternatives
+
+- Freezing an accepted record and recording a changed decision in a new
+  record that supersedes it. The decision in force would then be spread
+  over a chain of records, and a reader would have to follow every
+  `Superseded by` link to learn it. The text of every earlier version
+  is already kept in git history.
+
 ## Consequences
 
-- Reading the latest record on a subject, and following `Superseded by`
-  links, gives the decision in force.
-- Any change to what an accepted record says, however small, costs a
-  new record.
+- One record per subject gives the decision in force and every design
+  turned down for it.
+- A rewrite of an accepted record is reviewed like any other change, in
+  a pull request that names what was dropped and why.
