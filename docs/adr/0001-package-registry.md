@@ -91,8 +91,8 @@ The standard APT layout, with one suite:
 
 ```
 apt/
-├── <keyring>.gpg
-├── keyring/<keyring>_<date>_all.deb
+├── shortarrow-archive-keyring.gpg
+├── keyring/shortarrow-archive-keyring_<version>_all.deb
 ├── dists/stable/
 │   ├── InRelease
 │   ├── Release
@@ -128,10 +128,11 @@ Worker with its own redirect rule.
   touching anything else. There are two: a signing key, which expires
   after three years, and a standby key, kept offline and never used
   until it is needed.
-- A keyring package, `Architecture: all` and built from the public keys
-  under `keyring/` in this repository, installs the keyring file under
-  `/usr/share/keyrings/` with the public half of every current key,
-  standby included, the way Debian's own `debian-archive-keyring` does.
+- A keyring package, `shortarrow-archive-keyring`, `Architecture: all`
+  and built from the public keys under `keyring/` in this repository,
+  installs `/usr/share/keyrings/shortarrow-archive-keyring.gpg` with the
+  public half of every current key, standby included, the way Debian's
+  own `debian-archive-keyring` does, and is named after it.
   It is versioned by the date it was built with a counter
   (`2026.10.20.1`, then `2026.10.20.2` for a second change that day),
   independently of any project, and rebuilt only when its keys change.
@@ -140,7 +141,13 @@ Worker with its own redirect rule.
   it is served from the site itself under `keyring/`, not through the
   redirect, and appears in both architectures' `Packages`.
 - The install guide of each project downloads the same keyring to the
-  same path as its first step, and installs the keyring package by name
+  same path as its first step, adds the source line
+
+  ```
+  deb [signed-by=/usr/share/keyrings/shortarrow-archive-keyring.gpg] https://pkg.shortarrow.jp/apt stable main
+  ```
+
+  and installs the keyring package by name
   along with the project's package, so APT marks the keyring as
   installed by hand. Pulled in only as a dependency, it would be marked
   automatic, and `apt autoremove` after removing the project's package
@@ -259,8 +266,6 @@ pull requests and release workflow.
 
 ## Open questions
 
-- The keyring package's name and file name, and with them the source
-  line each install guide gives.
 - How a project's release starts a publishing run here, and the
   credential that lets it.
 - The APK repository for Alpine (ivi-cli #247): whether `apk` follows a
