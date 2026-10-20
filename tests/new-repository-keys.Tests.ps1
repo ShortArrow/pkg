@@ -124,6 +124,13 @@ Describe 'new-repository-keys.ps1' {
         }
     }
 
+    It 'makes the secret directory and its files readable by the owner only' -Skip:$IsWindows {
+        (Get-Item $secrets).UnixFileMode | Should -Be ([System.IO.UnixFileMode] 'UserRead, UserWrite, UserExecute')
+        Get-ChildItem $secrets -File | ForEach-Object {
+            $_.UnixFileMode | Should -Be ([System.IO.UnixFileMode] 'UserRead, UserWrite')
+        }
+    }
+
     It 'leaves the ambient GNUPGHOME untouched' {
         @(Get-ChildItem $ambientHome -Force).Count | Should -Be 0
     }

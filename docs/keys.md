@@ -12,7 +12,9 @@ ships with Git cannot read Windows paths.
 
 1. Pick a directory outside this repository for the secret material,
    such as a folder on an encrypted removable drive. The script refuses
-   one inside the repository.
+   one inside the repository. On Linux and macOS it makes the directory
+   and its files readable by you alone; on Windows they keep the
+   permissions of the directory you chose.
 2. Run:
 
    ```powershell

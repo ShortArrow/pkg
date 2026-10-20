@@ -55,6 +55,15 @@ function Invoke-Gpg([string[]] $Arguments, [string] $Passphrase) {
     $output
 }
 
+function Set-OwnerOnly([string[]] $Path) {
+    # On Windows the ACL is inherited from the directory the caller chose.
+    if ($IsWindows) { return }
+    foreach ($item in $Path) {
+        $mode = if (Test-Path $item -PathType Container) { '700' } else { '600' }
+        & chmod $mode $item
+    }
+}
+
 function Get-Fingerprint([string] $Uid) {
     $lines = & gpg --homedir $gpgHome --batch --with-colons --list-keys "=$Uid"
     ($lines | Where-Object { $_ -like 'fpr:*' } | Select-Object -First 1).Split(':')[9]
@@ -72,6 +81,7 @@ if ([string]::IsNullOrEmpty($standbySecret)) {
 New-Item -ItemType Directory -Force -Path $KeyringDirectory, $SecretDirectory | Out-Null
 $gpgHome = Join-Path ([System.IO.Path]::GetTempPath()) ([System.IO.Path]::GetRandomFileName())
 New-Item -ItemType Directory -Path $gpgHome | Out-Null
+Set-OwnerOnly $SecretDirectory, $gpgHome
 try {
     Invoke-Gpg @('--quick-generate-key', $signingUid, 'ed25519', 'sign', '3y') '' | Out-Null
     Invoke-Gpg @('--quick-generate-key', $standbyUid, 'ed25519', 'sign', 'never') $standbySecret | Out-Null
@@ -84,6 +94,7 @@ try {
     }
     Invoke-Gpg @('--armor', '--output', (Join-Path $SecretDirectory 'signing.secret.asc'), '--export-secret-keys', $signing) '' | Out-Null
     Invoke-Gpg @('--armor', '--output', (Join-Path $SecretDirectory 'standby.secret.asc'), '--export-secret-keys', $standby) $standbySecret | Out-Null
+    Set-OwnerOnly (Get-ChildItem $SecretDirectory -File).FullName
 
     Write-Output "signing $signing"
     Write-Output "standby $standby"
