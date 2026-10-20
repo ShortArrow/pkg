@@ -5,10 +5,10 @@
 ## Context
 
 ShortArrow publishes several command-line tools: ivi-cli (.NET), runex
-(Rust) and gitreant (TypeScript). Each builds its own release assets on
-GitHub Releases. A Linux user who installs one of them from an archive
-keeps whatever version was unpacked, because the system's package
-manager does not know about it.
+(Rust) and gitreant (Rust, with its frontend embedded in one binary).
+Each builds its own release assets on GitHub Releases. A Linux user who
+installs one of them from an archive keeps whatever version was
+unpacked, because the system's package manager does not know about it.
 
 APT reads a repository, not a list of files. `apt update` fetches
 `dists/<suite>/InRelease`, checks its signature against the key the
@@ -141,14 +141,17 @@ are left to the record that adds it (ivi-cli #247).
   the keyring, and with it the source, working. Being a few kilobytes,
   it is served from the site itself under `keyring/`, not through the
   redirect, and appears in both architectures' `Packages`.
-- The install guide of each project downloads the same keyring to the
-  same path as its first step, adds the source line
+- The install guide of each project downloads the same keyring,
+  `https://pkg.shortarrow.jp/apt/shortarrow-archive-keyring.gpg`, to the
+  same path as its first step, writes the source line
 
   ```
   deb [signed-by=/usr/share/keyrings/shortarrow-archive-keyring.gpg] https://pkg.shortarrow.jp/apt stable main
   ```
 
-  and installs the keyring package by name
+  to `/etc/apt/sources.list.d/shortarrow.list`, one file for every
+  project so that following a second project's guide rewrites it
+  unchanged, and installs the keyring package by name
   along with the project's package, so APT marks the keyring as
   installed by hand. Pulled in only as a dependency, it would be marked
   automatic, and `apt autoremove` after removing the project's package
@@ -192,7 +195,9 @@ public API with its own `GITHUB_TOKEN`, and starts one publishing run
 for each project and version not yet in the index. A project's
 repository holds no credential for this one and sends it nothing; a
 release reaches APT within about an hour, or at once when the workflow
-is run by hand. A publishing run:
+is run by hand. A release with no `.deb` asset, such as one made before
+its project built packages, is skipped and never retried; one with `.deb`
+assets but no `SHA256SUMS` fails its run. A publishing run:
 
 1. Refuse a release that GitHub marks as a pre-release, or whose tag
    carries a `-` after its version (`v0.5.0-beta.1`). The check is on
@@ -218,7 +223,8 @@ is run by hand. A publishing run:
 
 A rebuild replaces steps 2 and 3: the job builds the index from the
 package assets of every stable release of every project the registry
-lists, each checked against its release's `SHA256SUMS`, and the keyring
+lists, each checked against its release's `SHA256SUMS` and skipped or
+failed by the same rule, and the keyring
 package from `keyring/`, trusting nothing on the live site. It creates
 the repository the first time, and recovers it after a compromise or a
 failed verification.
