@@ -105,7 +105,9 @@ was chosen because the tools that generate repositories produce it at no
 extra cost, and because it leaves room to add a component or an
 architecture without changing the line every user has already written.
 An APK repository, when one is added, sits beside `apt/` under the same
-Worker with its own redirect rule.
+Worker with its own redirect rule. Whether `apk` follows the redirect to
+GitHub's asset host, and how its keys reach `/etc/apk/keys/` and rotate,
+are left to the record that adds it (ivi-cli #247).
 
 ### 4. What goes into the index
 
@@ -284,12 +286,6 @@ pull requests and release workflow.
 - **The maintainer attaches the Custom Domain by hand in the dashboard.**
   A rebuild into a new account or Worker would then depend on someone
   remembering the step.
-
-## Open questions
-
-- The APK repository for Alpine (ivi-cli #247): whether `apk` follows a
-  302 from this host to GitHub's asset host, and how key rotation reaches
-  `/etc/apk/keys/`.
 
 ## Consequences
 
