@@ -1,6 +1,6 @@
 # 0001. A package registry for ShortArrow's projects
 
-- Status: Draft
+- Status: Accepted
 
 ## Context
 
