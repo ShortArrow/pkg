@@ -128,7 +128,10 @@ are left to the record that adds it (ivi-cli #247).
   key, so the key that signs every update can be replaced without
   touching anything else. There are two: a signing key, which expires
   after three years, and a standby key, kept offline and never used
-  until it is needed.
+  until it is needed. The standby key has no expiry until it becomes the
+  signing key, so it never lapses unused in storage. The public half of
+  each lives under `keyring/` as `<fingerprint>.asc`, a name that stays
+  true when the standby key is promoted.
 - A keyring package, `shortarrow-archive-keyring`, `Architecture: all`
   and built from the public keys under `keyring/` in this repository,
   installs `/usr/share/keyrings/shortarrow-archive-keyring.gpg` with the
