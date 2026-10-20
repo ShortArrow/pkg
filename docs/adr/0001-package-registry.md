@@ -350,8 +350,16 @@ redirects, the request `scripts/check-redirect.ps1` makes:
   certificate, and following it with `curl -L` saved a file whose
   SHA-256 matched the release asset. `/` answered 404.
 
-Not yet verified: that a new version stops serving a file its manifest
-leaves out, that files without an extension such as `InRelease` and
-`Packages` are served at their exact paths, and `apt` itself against
-`https://pkg.shortarrow.jp`. All three are checked there before the
-first publish.
+Also on 2026-10-20, on `https://pkg.shortarrow.jp`, between 04:01 and
+04:02 UTC, with throwaway files deployed from outside the repository:
+
+- A version whose assets held `apt/InRelease` and `apt/probe.txt`
+  served both with status 200 and their exact contents, the file
+  without an extension included.
+- The next version, which left `apt/probe.txt` out, answered 404 for it
+  within 10 seconds of the deploy and kept serving `apt/InRelease`.
+- Redeploying `public/` from `main` answered 404 for `apt/InRelease`
+  and the pool redirect again.
+
+Not yet verified: `apt` itself against `https://pkg.shortarrow.jp`. It
+is checked there before the first publish.
