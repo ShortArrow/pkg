@@ -6,7 +6,7 @@ command-line tools:
 | Tool | APT package |
 | --- | --- |
 | [ivi-cli](https://github.com/ShortArrow/ivi-cli) | `ivicli` |
-| [runex](https://github.com/ShortArrow/runex) | not yet |
+| [runex](https://github.com/ShortArrow/runex) | `runex` |
 | [gitreant](https://github.com/ShortArrow/gitreant) | `gitreant` |
 
 Each project builds its packages and attaches them to its own GitHub
