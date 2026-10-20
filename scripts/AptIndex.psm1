@@ -52,6 +52,36 @@ function ConvertTo-Deb822 {
     ($stanzas -join "`n`n") + "`n"
 }
 
+function New-PackageEntry {
+    <#
+    .SYNOPSIS
+    Returns a package's control fields with its Filename, Size and SHA256 added before Description.
+
+    .PARAMETER Control
+    The fields of the package's control file, as ConvertFrom-Deb822 reads them.
+
+    .PARAMETER Path
+    The downloaded package file, whose size and hash are taken.
+
+    .PARAMETER Filename
+    The package's path relative to the repository's base URL, such as pool/<repo>/<tag>/<file>.
+    #>
+    param(
+        [System.Collections.IDictionary] $Control,
+        [string] $Path,
+        [string] $Filename
+    )
+
+    $entry = [ordered]@{}
+    foreach ($field in $Control.GetEnumerator()) { $entry[$field.Key] = $field.Value }
+    $at = @($entry.Keys).IndexOf('Description')
+    if ($at -lt 0) { $at = $entry.Count }
+    $entry.Insert($at, 'Filename', $Filename)
+    $entry.Insert($at + 1, 'Size', [string] (Get-Item $Path).Length)
+    $entry.Insert($at + 2, 'SHA256', (Get-FileHash -Algorithm SHA256 $Path).Hash.ToLowerInvariant())
+    $entry
+}
+
 function Get-EntryKey([System.Collections.IDictionary] $Entry) {
     "$($Entry.Package) $($Entry.Version) $($Entry.Architecture)"
 }
@@ -136,4 +166,4 @@ function Select-ArchitectureIndex {
     $Index | Where-Object { $_.Architecture -in $Architecture, 'all' }
 }
 
-Export-ModuleMember -Function ConvertFrom-Deb822, ConvertTo-Deb822, Set-PackageVersion, Remove-PackageVersion, Join-PackageIndex, Select-ArchitectureIndex
+Export-ModuleMember -Function ConvertFrom-Deb822, ConvertTo-Deb822, New-PackageEntry,Set-PackageVersion, Remove-PackageVersion, Join-PackageIndex, Select-ArchitectureIndex

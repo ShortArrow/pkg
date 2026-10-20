@@ -141,3 +141,19 @@ Describe 'Select-ArchitectureIndex' {
             Should -Be @('runex 0.1.21-1 arm64', 'shortarrow-archive-keyring 2026.10.21.1 all')
     }
 }
+
+Describe 'New-PackageEntry' {
+    It 'adds the file name, size and SHA-256 of the package before its description' {
+        $deb = Join-Path $TestDrive 'runex_0.1.21-1_amd64.deb'
+        Set-Content -Path $deb -Value 'package' -NoNewline
+        $control = ConvertFrom-Deb822 "Package: runex`nVersion: 0.1.21-1`nArchitecture: amd64`nDescription: one`n two`n"
+
+        $entry = New-PackageEntry -Control $control -Path $deb -Filename 'pool/runex/v0.1.21/runex_0.1.21-1_amd64.deb'
+
+        @($entry.Keys) | Should -Be @('Package', 'Version', 'Architecture', 'Filename', 'Size', 'SHA256', 'Description')
+        $entry.Filename | Should -Be 'pool/runex/v0.1.21/runex_0.1.21-1_amd64.deb'
+        $entry.Size | Should -Be '7'
+        $entry.SHA256 | Should -Be (Get-FileHash -Algorithm SHA256 $deb).Hash.ToLowerInvariant()
+        @($control.Keys) | Should -Not -Contain 'Filename'
+    }
+}
