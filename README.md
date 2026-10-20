@@ -7,7 +7,7 @@ command-line tools:
 | --- | --- |
 | [ivi-cli](https://github.com/ShortArrow/ivi-cli) | `ivicli` |
 | [runex](https://github.com/ShortArrow/runex) | not yet |
-| [gitreant](https://github.com/ShortArrow/gitreant) | not yet |
+| [gitreant](https://github.com/ShortArrow/gitreant) | `gitreant` |
 
 Each project builds its packages and attaches them to its own GitHub
 Release. This repository holds the signed indexes that point at those
