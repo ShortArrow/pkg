@@ -179,9 +179,19 @@ are left to the record that adds it (ivi-cli #247).
   a new key.
 - The keys and a Cloudflare API token limited to editing Workers
   scripts on the one account, with that account's ID, are secrets of a
-  GitHub Actions environment, `publish`, in this repository. Only the
-  workflows of this repository reach them, so pushing a tag or changing
-  a workflow in a project's repository does not.
+  GitHub Actions environment, `publish`, in this repository, which
+  accepts jobs from `main` only. Only the workflows of this repository
+  reach them, so pushing a tag or changing a workflow in a project's
+  repository does not.
+- Every run except the weekly re-signing first waits in a second
+  environment, `approve`, which holds no secret and requires the
+  maintainer's approval. A release, or the assets of one, replaced by
+  someone who took over a project's repository therefore reaches users
+  only after the maintainer has seen it. The re-signing does not wait,
+  because it must keep running when no one is watching (below), and it
+  adds nothing that `main` does not already hold. The approval is a job
+  of its own, outside the concurrency group of §6, so a run waiting for
+  it never holds up the re-signing.
 - `Release` carries `Date` and `Valid-Until`, 90 days after signing. A
   scheduled workflow re-signs the metadata weekly. Without an expiry, an
   attacker or a stale mirror could keep serving an old, validly signed
@@ -196,9 +206,13 @@ and when run by hand with a project and a tag, it lists the stable
 GitHub Releases of the projects this repository lists, through the
 public API with its own `GITHUB_TOKEN`, and starts one publishing run
 for each project and version not yet in the index. A project's
-repository holds no credential for this one and sends it nothing; a
-release reaches APT within about an hour, or at once when the workflow
-is run by hand. A release with no `.deb` asset, such as one made before
+repository holds no credential for this one and sends it nothing. The
+run asks for approval (§5) within about an hour of the release, or at
+once when the workflow is run by hand, and the release reaches APT when
+the maintainer approves it. The hourly poll starts a run for a release
+only once; a run that is still waiting, was rejected or failed is not
+started again by the poll, so an unanswered approval does not pile up
+a new request every hour. A release with no `.deb` asset, such as one made before
 its project built packages, is skipped and never retried; one with `.deb`
 assets but no `SHA256SUMS` fails its run. A publishing run:
 
@@ -295,6 +309,19 @@ pull requests and release workflow.
 - **The maintainer attaches the Custom Domain by hand in the dashboard.**
   A rebuild into a new account or Worker would then depend on someone
   remembering the step.
+- **Publishing without approval.** A release would reach APT within an
+  hour with no one watching, but so would a release, or its
+  `SHA256SUMS` with its assets, replaced by someone who took over a
+  project's repository; the registry checks assets against that file,
+  not against who made it.
+- **Approval for every run, the re-signing included.** Every week would
+  need the maintainer, and a maintainer away for 90 days would leave
+  users with an expired repository.
+- **The keys in two environments, one requiring approval for publishing
+  and one without for re-signing.** The signing key would be stored
+  twice, and the approval would rest on whether GitHub lets a job
+  waiting for it hold the concurrency group, which its documentation
+  does not say.
 
 ## Consequences
 
