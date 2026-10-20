@@ -329,10 +329,23 @@ owner, and the next version of the package replaced it again. An
 only one of them, in both containers, and one signed by a key that had
 expired in the client's keyring failed with `EXPKEYSIG`.
 
-Not yet verified: that the Workers static assets `_redirects` rule with
-`:repo`, `:tag` and `:file` placeholders returns the 302 to an external
-host as intended, that a new version stops serving a file its manifest
+On 2026-10-20, with the assets-only Worker this repository configures,
+a request for `/apt/pool/ivi-cli/v0.4.0/SHA256SUMS` that did not follow
+redirects, the request `scripts/check-redirect.ps1` makes:
+
+- Under `wrangler dev` (wrangler 4.151.2), the request answered 404
+  with `_redirects` under `public/apt/` and with no `_redirects` at all,
+  and 302 to
+  `https://github.com/ShortArrow/ivi-cli/releases/download/v0.4.0/SHA256SUMS`
+  with `_redirects` at the root of the assets directory. Workers read the
+  file only there.
+- On `https://pkg.shortarrow.jp`, deployed from `main` at 83332f8, the
+  request answered the same 302 over HTTPS with Cloudflare's
+  certificate, and following it with `curl -L` saved a file whose
+  SHA-256 matched the release asset. `/` answered 404.
+
+Not yet verified: that a new version stops serving a file its manifest
 leaves out, that files without an extension such as `InRelease` and
-`Packages` are served at their exact paths, and the repository over
-Cloudflare's own certificate. All four are checked on a test site before
-the first publish.
+`Packages` are served at their exact paths, and `apt` itself against
+`https://pkg.shortarrow.jp`. All three are checked there before the
+first publish.
