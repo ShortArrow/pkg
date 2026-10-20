@@ -183,10 +183,19 @@ Worker with its own redirect rule.
 
 ### 6. Publishing
 
-A project's stable release triggers one publishing run for that project
-and version:
+A workflow in this repository finds new releases itself: every hour,
+and when run by hand with a project and a tag, it lists the stable
+GitHub Releases of the projects this repository lists, through the
+public API with its own `GITHUB_TOKEN`, and starts one publishing run
+for each project and version not yet in the index. A project's
+repository holds no credential for this one and sends it nothing; a
+release reaches APT within about an hour, or at once when the workflow
+is run by hand. A publishing run:
 
-1. Refuse a version containing `-`.
+1. Refuse a release that GitHub marks as a pre-release, or whose tag
+   carries a `-` after its version (`v0.5.0-beta.1`). The check is on
+   the tag; a package's own `Version` carries the Debian revision
+   (`0.5.0-1`) and is not refused for it.
 2. Fetch the published site: `InRelease`, `Packages`, and every file the
    site serves itself, the keyring and its packages. Verify `InRelease`
    against the keys under `keyring/`, and every fetched file against its
@@ -223,12 +232,13 @@ read and deploy the site at the same time, and none waiting behind
 another is cancelled. Without `queue: max`, GitHub keeps one pending run
 per group and cancels the older one.
 
-The maintainer creates the Worker and attaches `pkg.shortarrow.jp` to it
-as a Custom Domain once, by hand, before the first publish; Cloudflare
-creates the DNS record and the certificate for it. The hostname must not
-already have a CNAME record, and every path on it goes to this Worker.
-The Worker's `wrangler` configuration, with its assets directory, lives
-in this repository.
+The Worker's `wrangler` configuration lives in this repository, with its
+assets directory and `pkg.shortarrow.jp` as its Custom Domain, so every
+deploy, the first and a rebuild included, attaches the hostname;
+Cloudflare creates the DNS record and the certificate for it. The
+hostname must not already have a CNAME record, and every path on it goes
+to this Worker. Attaching a Custom Domain needs only the Workers Scripts
+Write permission the deploy token already has.
 
 ### 7. Checks
 
@@ -263,10 +273,20 @@ The check that a package installs at all, before anything is
 published, belongs to the project that builds it, and runs in its own
 pull requests and release workflow.
 
+## Alternatives
+
+- **A project's release sends `repository_dispatch` to this
+  repository.** A release would reach APT at once, but sending the event
+  needs a token with Contents write on this repository, the permission
+  that also pushes commits and edits files here. Held by every project,
+  one leaked token could add a key under `keyring/`, which the next
+  re-signing would ship to every user as trusted.
+- **The maintainer attaches the Custom Domain by hand in the dashboard.**
+  A rebuild into a new account or Worker would then depend on someone
+  remembering the step.
+
 ## Open questions
 
-- How a project's release starts a publishing run here, and the
-  credential that lets it.
 - The APK repository for Alpine (ivi-cli #247): whether `apk` follows a
   302 from this host to GitHub's asset host, and how key rotation reaches
   `/etc/apk/keys/`.
