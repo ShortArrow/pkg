@@ -114,4 +114,55 @@ function New-KeyringPackage {
     }
 }
 
-Export-ModuleMember -Function Get-NextKeyringVersion, Write-BinaryKeyring, New-KeyringPackage
+function Select-NewestKeyringEntry {
+    <#
+    .SYNOPSIS
+    Returns the index entry of the keyring package with the highest version, or nothing when there is none.
+    #>
+    param([System.Collections.IDictionary[]] $Index)
+
+    $Index | Where-Object { $_.Package -eq $packageName } |
+        Sort-Object { [version] $_.Version } | Select-Object -Last 1
+}
+
+function Get-KeyFingerprint([string[]] $Path) {
+    $work = Join-Path ([System.IO.Path]::GetTempPath()) ([System.IO.Path]::GetRandomFileName())
+    New-Item -ItemType Directory -Path $work | Out-Null
+    try {
+        $primary = $false
+        foreach ($line in $Path | ForEach-Object { & gpg --homedir $work --batch --with-colons --show-keys $_ 2>$null }) {
+            if ($line -like 'pub:*') { $primary = $true }
+            elseif ($line -like 'fpr:*' -and $primary) { $line.Split(':')[9]; $primary = $false }
+        }
+    }
+    finally {
+        & gpgconf --homedir $work --kill gpg-agent 2>$null
+        Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue
+    }
+}
+
+function Test-KeyringPackageCurrent {
+    <#
+    .SYNOPSIS
+    Tells whether the keyring package installs exactly the keys under KeyringDirectory, no more and no fewer.
+    #>
+    param(
+        [string] $Package,
+        [string] $KeyringDirectory
+    )
+
+    $work = Join-Path ([System.IO.Path]::GetTempPath()) ([System.IO.Path]::GetRandomFileName())
+    New-Item -ItemType Directory -Path $work | Out-Null
+    try {
+        $output = & dpkg-deb -x $Package $work 2>&1
+        if ($LASTEXITCODE -ne 0) { throw "Extracting $Package failed: $($output | Out-String)" }
+        $packaged = @(Get-KeyFingerprint (Join-Path $work $installedPath)) | Sort-Object
+        $current = @(Get-KeyFingerprint (Get-ChildItem $KeyringDirectory -Filter '*.asc').FullName) | Sort-Object
+        ($packaged -join ' ') -eq ($current -join ' ')
+    }
+    finally {
+        Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue
+    }
+}
+
+Export-ModuleMember -Function Get-NextKeyringVersion, Write-BinaryKeyring, New-KeyringPackage, Select-NewestKeyringEntry, Test-KeyringPackageCurrent

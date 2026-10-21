@@ -6,6 +6,9 @@ Fetches the published site and verifies every file of it before anything is buil
 
 Import-Module (Join-Path $PSScriptRoot 'AptIndex.psm1')
 Import-Module (Join-Path $PSScriptRoot 'Keyring.psm1')
+Import-Module (Join-Path $PSScriptRoot 'AptRelease.psm1')
+
+$architectures = 'amd64', 'arm64'
 
 function Save-SiteFile([string] $Destination, [string] $Path, [byte[]] $Bytes) {
     $file = Join-Path $Destination 'apt' $Path
@@ -104,4 +107,67 @@ function Import-PublishedSite {
     $index
 }
 
-Export-ModuleMember -Function Import-PublishedSite
+function Write-Gzip([string] $Path, [byte[]] $Bytes) {
+    $stream = [System.IO.Compression.GZipStream]::new([System.IO.File]::Create($Path), [System.IO.Compression.CompressionLevel]::SmallestSize)
+    try { $stream.Write($Bytes, 0, $Bytes.Length) } finally { $stream.Dispose() }
+}
+
+function Write-Site {
+    <#
+    .SYNOPSIS
+    Writes the whole site to deploy into an empty Destination, and signs its index.
+
+    .DESCRIPTION
+    The site holds the redirects at its root, and under apt/ the keyring built from
+    KeyringDirectory, every file the index names off pool/, and for amd64 and arm64 a Packages
+    and Packages.gz with that architecture's entries and the architecture-independent ones.
+    A file the index does not name is not carried over, because a deployed version serves
+    only the files it lists.
+
+    .PARAMETER SourceDirectory
+    Holds every file the index names off pool/ at apt/<Filename>, as Import-PublishedSite
+    saves them and new keyring packages are added.
+
+    .PARAMETER Redirects
+    The _redirects file, copied to the root of the site.
+    #>
+    param(
+        [string] $Destination,
+        [string] $SourceDirectory,
+        [string] $Redirects,
+        [System.Collections.IDictionary[]] $Index,
+        [string] $KeyringDirectory,
+        [DateTimeOffset] $Date,
+        [string] $GpgHome,
+        [string[]] $KeyId
+    )
+
+    if ((Test-Path $Destination) -and (Get-ChildItem -Force $Destination)) {
+        throw "$Destination is not empty."
+    }
+    $apt = Join-Path $Destination 'apt'
+    $suite = Join-Path $apt 'dists' 'stable'
+    New-Item -ItemType Directory -Force -Path $suite | Out-Null
+    Copy-Item $Redirects (Join-Path $Destination '_redirects')
+    Write-BinaryKeyring -KeyringDirectory $KeyringDirectory -Path (Join-Path $apt 'shortarrow-archive-keyring.gpg')
+
+    foreach ($entry in $Index | Where-Object { $_.Filename -notlike 'pool/*' }) {
+        $source = Join-Path $SourceDirectory 'apt' $entry.Filename
+        if (-not (Test-Path $source)) { throw "The source does not hold $($entry.Filename)." }
+        $target = Join-Path $apt $entry.Filename
+        New-Item -ItemType Directory -Force -Path (Split-Path $target) | Out-Null
+        Copy-Item $source $target
+    }
+
+    foreach ($architecture in $architectures) {
+        $binary = Join-Path $suite 'main' "binary-$architecture"
+        New-Item -ItemType Directory -Force -Path $binary | Out-Null
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes((ConvertTo-Deb822 @(Select-ArchitectureIndex -Index $Index -Architecture $architecture)))
+        [System.IO.File]::WriteAllBytes((Join-Path $binary 'Packages'), $bytes)
+        Write-Gzip (Join-Path $binary 'Packages.gz') $bytes
+    }
+
+    Write-SignedRelease -SuiteDirectory $suite -Date $Date -GpgHome $GpgHome -KeyId $KeyId
+}
+
+Export-ModuleMember -Function Import-PublishedSite, Write-Site
