@@ -88,6 +88,11 @@ Describe 'Write-Site' -Tag 'gpg' {
         $page | Should -Match 'href="/apt/shortarrow-archive-keyring.gpg"'
     }
 
+    It 'gives on the front page the command that prints the fingerprints of the downloaded keyring' {
+        [System.IO.File]::ReadAllText((Join-Path $site 'index.html')) |
+            Should -Match ([regex]::Escape('curl -fsSL https://pkg.shortarrow.jp/apt/shortarrow-archive-keyring.gpg | gpg --show-keys'))
+    }
+
     It 'puts each architecture''s own entries and the architecture-independent ones in its Packages, and the same text in Packages.gz' {
         $binary = Join-Path $site 'apt' 'dists' 'stable' 'main' 'binary-arm64'
         $text = [System.IO.File]::ReadAllText((Join-Path $binary 'Packages'))

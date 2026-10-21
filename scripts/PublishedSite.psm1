@@ -138,6 +138,8 @@ It is maintained by <a href="https://github.com/ShortArrow">ShortArrow</a> and b
 <h2>Keys</h2>
 <p><a href="/apt/shortarrow-archive-keyring.gpg">shortarrow-archive-keyring.gpg</a> holds these public keys.
 The signing key signs the repository; the standby key takes over when the signing key has to be replaced.</p>
+<p>To check a downloaded keyring, compare the fingerprints this prints with the ones below:</p>
+<pre><code>curl -fsSL https://pkg.shortarrow.jp/apt/shortarrow-archive-keyring.gpg | gpg --show-keys</code></pre>
 <ul>
 $($keys -join "`n")
 </ul>

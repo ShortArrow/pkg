@@ -30,5 +30,12 @@ Replace `runex` with any package in the table. Installing
 `shortarrow-archive-keyring` by name keeps the keyring, and the keys it
 holds up to date, after the tool is removed.
 
+To check the keyring, compare the fingerprints this prints with those on
+<https://pkg.shortarrow.jp/>:
+
+```sh
+curl -fsSL https://pkg.shortarrow.jp/apt/shortarrow-archive-keyring.gpg | gpg --show-keys
+```
+
 The design is in [ADR 0001](docs/adr/0001-package-registry.md), and how
 to run the registry in [docs/operations.md](docs/operations.md).
