@@ -4,6 +4,8 @@
 Decides which GitHub Releases of a project enter the index, and checks their assets.
 #>
 
+Import-Module (Join-Path $PSScriptRoot 'AptIndex.psm1')
+
 function Test-StableRelease {
     <#
     .SYNOPSIS
@@ -58,4 +60,51 @@ function Assert-Sha256Sum {
     }
 }
 
-Export-ModuleMember -Function Test-StableRelease, ConvertFrom-Sha256Sums, Assert-Sha256Sum
+function Get-ReleasePackageEntry {
+    <#
+    .SYNOPSIS
+    Downloads a release's packages and SHA256SUMS, checks each package, and returns its index entries.
+
+    .DESCRIPTION
+    A release with no .deb asset, such as one made before its project built packages, yields
+    nothing and downloads nothing. One with .deb assets but no SHA256SUMS is refused, and so
+    is a package that does not match it. Each entry carries the package's own control fields,
+    read with dpkg-deb, and the Filename pool/<Repository>/<Tag>/<asset>, which the site
+    redirects to the release asset.
+
+    .PARAMETER Assets
+    The release's assets, each with a name and a url.
+
+    .PARAMETER Download
+    Saves the asset at the given url to the given path.
+    #>
+    param(
+        [string] $Repository,
+        [string] $Tag,
+        [object[]] $Assets,
+        [scriptblock] $Download,
+        [string] $WorkDirectory
+    )
+
+    $packages = @($Assets | Where-Object { $_.name -like '*.deb' })
+    if (-not $packages) { return }
+    $sumsAsset = $Assets | Where-Object { $_.name -eq 'SHA256SUMS' }
+    if (-not $sumsAsset) {
+        throw "$Repository $Tag has packages but no SHA256SUMS."
+    }
+
+    $sumsPath = Join-Path $WorkDirectory 'SHA256SUMS'
+    & $Download $sumsAsset.url $sumsPath
+    $sums = ConvertFrom-Sha256Sums ([System.IO.File]::ReadAllText($sumsPath))
+    foreach ($asset in $packages | Sort-Object name) {
+        $path = Join-Path $WorkDirectory $asset.name
+        & $Download $asset.url $path
+        Assert-Sha256Sum -Path $path -Sums $sums
+        $control = & dpkg-deb -f $path
+        if ($LASTEXITCODE -ne 0) { throw "Reading the control fields of $($asset.name) failed." }
+        New-PackageEntry -Control @(ConvertFrom-Deb822 ($control -join "`n"))[0] -Path $path `
+            -Filename "pool/$Repository/$Tag/$($asset.name)"
+    }
+}
+
+Export-ModuleMember -Function Test-StableRelease, ConvertFrom-Sha256Sums, Assert-Sha256Sum, Get-ReleasePackageEntry
