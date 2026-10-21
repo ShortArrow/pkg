@@ -1,0 +1,26 @@
+name: poll
+
+on:
+  schedule:
+    - cron: '7 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start a publishing run for each unpublished release
+        run: |
+          pwsh -File scripts/find-unpublished.ps1 | while read -r repository tag; do
+            echo "Starting publish $repository $tag"
+            gh workflow run publish.yml -f operation=publish -f repository="$repository" -f tag="$tag"
+          done

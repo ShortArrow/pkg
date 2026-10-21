@@ -1,0 +1,103 @@
+name: publish
+run-name: ${{ inputs.operation }} ${{ inputs.repository }}${{ inputs.package }} ${{ inputs.tag }}${{ inputs.version }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: publish a release, rebuild the whole repository, or withdraw a package version
+        type: choice
+        options: [publish, rebuild, withdraw]
+        default: publish
+      repository:
+        description: "publish: the project's repository, such as runex"
+        type: string
+      tag:
+        description: "publish: the release's tag, such as v0.1.21"
+        type: string
+      package:
+        description: "withdraw: the package, such as runex"
+        type: string
+      version:
+        description: "withdraw: the package version, such as 0.1.21-1"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  approve:
+    runs-on: ubuntu-latest
+    environment: approve
+    steps:
+      - run: echo "Approved $OPERATION $REPOSITORY$PACKAGE $TAG$VERSION"
+        env:
+          OPERATION: ${{ inputs.operation }}
+          REPOSITORY: ${{ inputs.repository }}
+          PACKAGE: ${{ inputs.package }}
+          TAG: ${{ inputs.tag }}
+          VERSION: ${{ inputs.version }}
+
+  update:
+    needs: approve
+    runs-on: ubuntu-latest
+    environment: publish
+    concurrency:
+      group: registry
+      queue: max
+    outputs:
+      deployed: ${{ steps.build.outputs.deployed }}
+      packages: ${{ steps.build.outputs.packages }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the next site
+        id: build
+        shell: pwsh
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+          OPERATION: ${{ inputs.operation }}
+          REPOSITORY: ${{ inputs.repository }}
+          TAG: ${{ inputs.tag }}
+          PACKAGE: ${{ inputs.package }}
+          VERSION: ${{ inputs.version }}
+        run: >-
+          ./scripts/update-registry.ps1 -Operation $env:OPERATION
+          -Repository $env:REPOSITORY -Tag $env:TAG -Package $env:PACKAGE -Version $env:VERSION
+          -Destination (Join-Path $env:RUNNER_TEMP 'site')
+      - name: Put the site where wrangler.jsonc points
+        if: steps.build.outputs.deployed == 'true'
+        run: rm -rf public && mv "$RUNNER_TEMP/site" public
+      - name: Deploy
+        if: steps.build.outputs.deployed == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@4.151.2 deploy
+      - name: Check that the live site serves what was signed
+        if: steps.build.outputs.deployed == 'true'
+        shell: pwsh
+        run: ./scripts/assert-live.ps1 -Expected public/apt/dists/stable/InRelease
+
+  check:
+    needs: update
+    if: needs.update.outputs.deployed == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+        image: ['debian:bookworm', 'ubuntu:24.04']
+    runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.image }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install from the live repository
+        env:
+          PACKAGES: ${{ needs.update.outputs.packages }}
+        run: |
+          sh scripts/check-install.sh https://pkg.shortarrow.jp/apt
+          printf '%s\n' "$PACKAGES" | while read -r package version upstream command; do
+            [ -n "$package" ] || continue
+            # The check command is word-split on purpose: projects.json gives it as one line.
+            sh scripts/check-install.sh https://pkg.shortarrow.jp/apt "$package" "$version" "$upstream" $command
+          done

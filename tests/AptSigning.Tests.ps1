@@ -67,3 +67,34 @@ Describe 'Write-SignedRelease' -Tag 'gpg' {
         $result.Bad | Should -BeNullOrEmpty
     }
 }
+
+Describe 'Import-SigningKey' -Tag 'gpg' {
+    BeforeAll {
+        $source = New-TempDirectory
+        $fingerprints = @((New-TestKey $source 'one'), (New-TestKey $source 'two'))
+        $armored = (& gpg --homedir $source --batch --armor --export-secret-keys $fingerprints) -join "`n"
+        $target = New-TempDirectory
+    }
+
+    AfterAll {
+        foreach ($dir in $source, $target) {
+            & gpgconf --homedir $dir --kill gpg-agent 2>$null
+            Remove-Item -Recurse -Force $dir -ErrorAction SilentlyContinue
+        }
+    }
+
+    It 'imports every secret key in the armored text and returns their fingerprints' {
+        Import-SigningKey -ArmoredKey $armored -GpgHome $target | Sort-Object | Should -Be ($fingerprints | Sort-Object)
+    }
+
+    It 'refuses a text holding no secret key' {
+        $empty = New-TempDirectory
+        try {
+            { Import-SigningKey -ArmoredKey 'not a key' -GpgHome $empty } | Should -Throw '*no secret key*'
+        }
+        finally {
+            & gpgconf --homedir $empty --kill gpg-agent 2>$null
+            Remove-Item -Recurse -Force $empty -ErrorAction SilentlyContinue
+        }
+    }
+}

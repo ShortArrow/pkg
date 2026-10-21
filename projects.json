@@ -1,0 +1,5 @@
+[
+  { "repository": "ivi-cli", "package": "ivicli", "check": "ivicli --version" },
+  { "repository": "runex", "package": "runex", "check": "runex version" },
+  { "repository": "gitreant", "package": "gitreant", "check": "gitreant --version" }
+]
