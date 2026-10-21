@@ -31,6 +31,10 @@ Describe 'Write-Site' -Tag 'gpg' {
         $lines = & gpg --homedir $gpgHome --batch --with-colons --list-keys '=signing'
         $signing = ($lines | Where-Object { $_ -like 'fpr:*' } | Select-Object -First 1).Split(':')[9]
         & gpg --homedir $gpgHome --batch --yes --armor --output (Join-Path $keyring "$signing.asc") --export $signing
+        & gpg --homedir $gpgHome --batch --pinentry-mode loopback --passphrase '' --quick-generate-key 'standby <b>' ed25519 sign never 2>$null
+        $lines = & gpg --homedir $gpgHome --batch --with-colons --list-keys '=standby <b>'
+        $standby = ($lines | Where-Object { $_ -like 'fpr:*' } | Select-Object -First 1).Split(':')[9]
+        & gpg --homedir $gpgHome --batch --yes --armor --output (Join-Path $keyring "$standby.asc") --export $standby
 
         $source = New-TempDirectory
         $kept = Join-Path $source 'apt' 'keyring' 'shortarrow-archive-keyring_2026.10.21.1_all.deb'
@@ -60,7 +64,7 @@ Describe 'Write-Site' -Tag 'gpg' {
         Remove-Item -Recurse -Force $gpgHome, $keyring, $source, (Split-Path $site) -ErrorAction SilentlyContinue
     }
 
-    It 'writes the redirects, the keyring, the files the index names off pool/, and the signed index, and nothing else' {
+    It 'writes the redirects, the front page, the keyring, the files the index names off pool/, and the signed index, and nothing else' {
         Get-RelativeFile $site | Should -Be @(
             '_redirects'
             'apt/dists/stable/InRelease'
@@ -71,7 +75,17 @@ Describe 'Write-Site' -Tag 'gpg' {
             'apt/dists/stable/Release'
             'apt/keyring/shortarrow-archive-keyring_2026.10.21.1_all.deb'
             'apt/shortarrow-archive-keyring.gpg'
-        ) | Sort-Object
+            'index.html'
+        )
+    }
+
+    It 'names on the front page every key under keyring/, with its fingerprint and its user ID escaped' {
+        $page = [System.IO.File]::ReadAllText((Join-Path $site 'index.html'))
+        $page | Should -Match ([regex]::Escape(($signing -replace '(.{4})(?!$)', '$1 ')))
+        $page | Should -Match ([regex]::Escape(($standby -replace '(.{4})(?!$)', '$1 ')))
+        $page | Should -Match 'standby &lt;b&gt;'
+        $page | Should -Not -Match 'standby <b>'
+        $page | Should -Match 'href="/apt/shortarrow-archive-keyring.gpg"'
     }
 
     It 'puts each architecture''s own entries and the architecture-independent ones in its Packages, and the same text in Packages.gz' {

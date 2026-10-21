@@ -112,6 +112,41 @@ function Write-Gzip([string] $Path, [byte[]] $Bytes) {
     try { $stream.Write($Bytes, 0, $Bytes.Length) } finally { $stream.Dispose() }
 }
 
+function New-FrontPage([string] $KeyringDirectory) {
+    $keys = foreach ($key in Get-KeyringKey -KeyringDirectory $KeyringDirectory) {
+        $fingerprint = $key.Fingerprint -replace '(.{4})(?!$)', '$1 '
+        "<li><code>$fingerprint</code><br>$([System.Net.WebUtility]::HtmlEncode($key.UserId))</li>"
+    }
+    @"
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pkg.shortarrow.jp</title>
+<style>
+body { font-family: system-ui, sans-serif; line-height: 1.5; max-width: 46rem; margin: 2rem auto; padding: 0 1rem; }
+code { font-family: ui-monospace, monospace; }
+@media (prefers-color-scheme: dark) { body { background: #111; color: #ddd; } a { color: #8ab4f8; } }
+</style>
+</head>
+<body>
+<h1>pkg.shortarrow.jp</h1>
+<p>The APT repository of ShortArrow's command-line tools, at <code>https://pkg.shortarrow.jp/apt</code>.
+It is maintained by <a href="https://github.com/ShortArrow">ShortArrow</a> and built from
+<a href="https://github.com/ShortArrow/pkg">ShortArrow/pkg</a>, which gives the install steps.</p>
+<h2>Keys</h2>
+<p><a href="/apt/shortarrow-archive-keyring.gpg">shortarrow-archive-keyring.gpg</a> holds these public keys.
+The signing key signs the repository; the standby key takes over when the signing key has to be replaced.</p>
+<ul>
+$($keys -join "`n")
+</ul>
+</body>
+</html>
+
+"@
+}
+
 function Write-Site {
     <#
     .SYNOPSIS
@@ -149,6 +184,7 @@ function Write-Site {
     $suite = Join-Path $apt 'dists' 'stable'
     New-Item -ItemType Directory -Force -Path $suite | Out-Null
     Copy-Item $Redirects (Join-Path $Destination '_redirects')
+    [System.IO.File]::WriteAllText((Join-Path $Destination 'index.html'), ((New-FrontPage $KeyringDirectory) -replace "`r`n", "`n"))
     Write-BinaryKeyring -KeyringDirectory $KeyringDirectory -Path (Join-Path $apt 'shortarrow-archive-keyring.gpg')
 
     foreach ($entry in $Index | Where-Object { $_.Filename -notlike 'pool/*' }) {
