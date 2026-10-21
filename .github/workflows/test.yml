@@ -24,7 +24,7 @@ jobs:
           $config.Run.Path = 'tests'
           $config.Run.PassThru = $true
           $config.Output.Verbosity = 'Detailed'
-          # The gpg on a Windows runner is the one Git ships, which cannot read Windows paths.
-          if ($IsWindows) { $config.Filter.ExcludeTag = 'gpg' }
+          # A Windows runner has no dpkg, and its gpg is the one Git ships, which cannot read Windows paths.
+          if ($IsWindows) { $config.Filter.ExcludeTag = 'gpg', 'dpkg' }
           $result = Invoke-Pester -Configuration $config
           if ($result.FailedCount -gt 0) { exit 1 }

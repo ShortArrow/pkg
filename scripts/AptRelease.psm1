@@ -52,4 +52,39 @@ function New-ReleaseText {
     ($lines -join "`n") + "`n"
 }
 
-Export-ModuleMember -Function New-ReleaseText
+function Write-SignedRelease {
+    <#
+    .SYNOPSIS
+    Writes Release for the suite directory and InRelease, the same text clearsigned by every given key.
+
+    .DESCRIPTION
+    Release is written as UTF-8 without a byte order mark and with LF line ends, as APT
+    reads it. While a new signing key is being introduced, both keys sign, so a client whose
+    keyring holds either one verifies InRelease.
+
+    .PARAMETER GpgHome
+    A GnuPG home holding the secret half of every key in KeyId, without a passphrase.
+
+    .PARAMETER KeyId
+    The fingerprints of the signing keys.
+    #>
+    param(
+        [string] $SuiteDirectory,
+        [DateTimeOffset] $Date,
+        [string] $GpgHome,
+        [string[]] $KeyId
+    )
+
+    $text = New-ReleaseText -SuiteDirectory $SuiteDirectory -Date $Date
+    $release = Join-Path $SuiteDirectory 'Release'
+    [System.IO.File]::WriteAllText($release, $text, [System.Text.UTF8Encoding]::new($false))
+
+    $signers = $KeyId | ForEach-Object { '--local-user', "$_!" }
+    $output = & gpg --homedir $GpgHome --batch --yes --pinentry-mode loopback --passphrase '' `
+        --digest-algo SHA512 @signers --clearsign --output (Join-Path $SuiteDirectory 'InRelease') $release 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "Signing InRelease failed: $($output | Out-String)"
+    }
+}
+
+Export-ModuleMember -Function New-ReleaseText, Write-SignedRelease
