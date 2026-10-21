@@ -107,4 +107,35 @@ function Get-ReleasePackageEntry {
     }
 }
 
-Export-ModuleMember -Function Test-StableRelease, ConvertFrom-Sha256Sums, Assert-Sha256Sum, Get-ReleasePackageEntry
+function Find-UnpublishedRelease {
+    <#
+    .SYNOPSIS
+    Returns the tags of a repository's releases that the hourly poll should start a publishing run for.
+
+    .DESCRIPTION
+    A release qualifies when it is stable, has a .deb asset, has no entry under
+    pool/<Repository>/<tag>/ in the index, and no run named 'publish <Repository> <tag>' was
+    ever started. A run that waits for approval, was rejected or failed is therefore not
+    started again; it is repeated by hand.
+
+    .PARAMETER StartedRuns
+    The names of every publishing run started so far.
+    #>
+    param(
+        [string] $Repository,
+        [object[]] $Releases,
+        [AllowEmptyCollection()] [System.Collections.IDictionary[]] $Index,
+        [AllowEmptyCollection()] [string[]] $StartedRuns
+    )
+
+    foreach ($release in $Releases) {
+        $tag = $release.tag_name
+        if (-not (Test-StableRelease -Tag $tag -Prerelease $release.prerelease)) { continue }
+        if (-not ($release.assets | Where-Object { $_.name -like '*.deb' })) { continue }
+        if ($Index | Where-Object { $_.Filename -like "pool/$Repository/$tag/*" }) { continue }
+        if ("publish $Repository $tag" -in $StartedRuns) { continue }
+        $tag
+    }
+}
+
+Export-ModuleMember -Function Test-StableRelease, ConvertFrom-Sha256Sums, Assert-Sha256Sum, Get-ReleasePackageEntry, Find-UnpublishedRelease

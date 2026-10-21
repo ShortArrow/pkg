@@ -1,0 +1,67 @@
+name: resign
+
+on:
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    environment: publish
+    concurrency:
+      group: registry
+      queue: max
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the re-signed site
+        shell: pwsh
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: ./scripts/update-registry.ps1 -Operation Resign -Destination (Join-Path $env:RUNNER_TEMP 'site')
+      - name: Put the site where wrangler.jsonc points
+        run: rm -rf public && mv "$RUNNER_TEMP/site" public
+      - name: Deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@4.151.2 deploy
+      - name: Check that the live site serves what was signed
+        shell: pwsh
+        run: ./scripts/assert-live.ps1 -Expected public/apt/dists/stable/InRelease
+
+  check:
+    needs: update
+    runs-on: ubuntu-latest
+    container: debian:bookworm
+    steps:
+      - uses: actions/checkout@v4
+      - run: sh scripts/check-install.sh https://pkg.shortarrow.jp/apt
+
+  report:
+    needs: [update, check]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TITLE: Re-signing the repository failed
+      RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      SUCCEEDED: ${{ needs.update.result == 'success' && needs.check.result == 'success' }}
+    steps:
+      - name: Open, update or close the failure issue
+        run: |
+          open=$(gh issue list --state open --search "in:title \"$TITLE\"" --json number --jq '.[0].number')
+          if [ "$SUCCEEDED" = true ]; then
+            [ -z "$open" ] || gh issue close "$open" --comment "Re-signed successfully in $RUN."
+          elif [ -n "$open" ]; then
+            gh issue comment "$open" --body "Failed again in $RUN."
+          else
+            gh issue create --title "$TITLE" --body "$RUN failed. Clients refuse the repository 90 days after the last successful re-signing."
+          fi

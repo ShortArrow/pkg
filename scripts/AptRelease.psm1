@@ -87,4 +87,27 @@ function Write-SignedRelease {
     }
 }
 
-Export-ModuleMember -Function New-ReleaseText, Write-SignedRelease
+function Import-SigningKey {
+    <#
+    .SYNOPSIS
+    Imports the armored secret keys into GpgHome and returns the fingerprint of each.
+
+    .PARAMETER ArmoredKey
+    The content of the SIGNING_KEY secret: one or more secret keys without a passphrase.
+    #>
+    param(
+        [string] $ArmoredKey,
+        [string] $GpgHome
+    )
+
+    $ArmoredKey | & gpg --homedir $GpgHome --batch --yes --import 2>$null
+    $fingerprints = @(& gpg --homedir $GpgHome --batch --with-colons --list-secret-keys 2>$null |
+            ForEach-Object -Begin { $primary = $false } -Process {
+                if ($_ -like 'sec:*') { $primary = $true }
+                elseif ($_ -like 'fpr:*' -and $primary) { $_.Split(':')[9]; $primary = $false }
+            })
+    if (-not $fingerprints) { throw 'The signing key text holds no secret key.' }
+    $fingerprints
+}
+
+Export-ModuleMember -Function New-ReleaseText, Write-SignedRelease, Import-SigningKey

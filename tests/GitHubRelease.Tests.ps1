@@ -130,3 +130,30 @@ Describe 'Get-ReleasePackageEntry' -Tag 'dpkg' {
             Should -Throw '*does not match*'
     }
 }
+
+Describe 'Find-UnpublishedRelease' {
+    BeforeAll {
+        function New-Release([string] $Tag, [bool] $Prerelease = $false, [string[]] $Asset = @('runex_1_amd64.deb', 'SHA256SUMS')) {
+            [pscustomobject]@{ tag_name = $Tag; prerelease = $Prerelease; assets = @($Asset | ForEach-Object { [pscustomobject]@{ name = $_ } }) }
+        }
+        $index = @([ordered]@{ Package = 'runex'; Version = '0.1.21-1'; Architecture = 'amd64'; Filename = 'pool/runex/v0.1.21/runex_0.1.21-1_amd64.deb' })
+    }
+
+    It 'returns the stable releases with packages that the index does not hold and no run was started for' {
+        $releases = @(
+            New-Release 'v0.1.23'
+            New-Release 'v0.1.22'
+            New-Release 'v0.1.21'
+            New-Release 'v0.2.0-rc.1' $true
+            New-Release 'v0.1.20' -Asset @('runex.tar.gz')
+        )
+
+        Find-UnpublishedRelease -Repository 'runex' -Releases $releases -Index $index -StartedRuns @('publish runex v0.1.23') |
+            Should -Be @('v0.1.22')
+    }
+
+    It 'returns nothing when every release is published' {
+        Find-UnpublishedRelease -Repository 'runex' -Releases @(New-Release 'v0.1.21') -Index $index -StartedRuns @() |
+            Should -BeNullOrEmpty
+    }
+}
