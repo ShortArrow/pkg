@@ -141,6 +141,32 @@ function Get-KeyFingerprint([string[]] $Path) {
     }
 }
 
+function Get-KeyringKey {
+    <#
+    .SYNOPSIS
+    Returns the Fingerprint and UserId of the primary key in each *.asc file under KeyringDirectory, in file name order.
+    #>
+    param([string] $KeyringDirectory)
+
+    $work = Join-Path ([System.IO.Path]::GetTempPath()) ([System.IO.Path]::GetRandomFileName())
+    New-Item -ItemType Directory -Path $work | Out-Null
+    try {
+        foreach ($asc in Get-ChildItem $KeyringDirectory -Filter '*.asc' | Sort-Object Name) {
+            $lines = & gpg --homedir $work --batch --with-colons --show-keys $asc.FullName 2>$null
+            $fingerprint = ($lines | Where-Object { $_ -like 'fpr:*' } | Select-Object -First 1).Split(':')[9]
+            $userId = ($lines | Where-Object { $_ -like 'uid:*' } | Select-Object -First 1).Split(':')[9]
+            [pscustomobject]@{
+                Fingerprint = $fingerprint
+                UserId      = [regex]::Replace($userId, '\\x([0-9a-fA-F]{2})', { [string] [char] [Convert]::ToInt32($args[0].Groups[1].Value, 16) })
+            }
+        }
+    }
+    finally {
+        & gpgconf --homedir $work --kill gpg-agent 2>$null
+        Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue
+    }
+}
+
 function Test-KeyringPackageCurrent {
     <#
     .SYNOPSIS
@@ -165,4 +191,4 @@ function Test-KeyringPackageCurrent {
     }
 }
 
-Export-ModuleMember -Function Get-NextKeyringVersion, Write-BinaryKeyring, New-KeyringPackage, Select-NewestKeyringEntry, Test-KeyringPackageCurrent
+Export-ModuleMember -Function Get-NextKeyringVersion, Write-BinaryKeyring, New-KeyringPackage, Select-NewestKeyringEntry, Get-KeyringKey, Test-KeyringPackageCurrent

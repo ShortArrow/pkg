@@ -55,7 +55,10 @@ The `shortarrow.jp` zone is on Cloudflare.
   the static assets of a Cloudflare Worker that has no script. They are
   small and change on every release and every re-signing (§5). Requests
   for static assets are free and unlimited, and a request no asset or
-  rule matches gets a 404.
+  rule matches gets a 404. The root of the host serves one page, built
+  from `keyring/` on every deploy, that names the repository, its
+  maintainer and the fingerprint of every key, so a reader can check the
+  keyring they downloaded without the page ever disagreeing with it.
 - The packages are GitHub Release assets of the project that built them
   and nothing else. The repository's `pool/<repo>/<tag>/<file>` path
   answers with a 302 to
