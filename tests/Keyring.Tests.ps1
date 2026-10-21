@@ -74,3 +74,65 @@ Describe 'New-KeyringPackage' -Tag 'gpg', 'dpkg' {
             Should -Be (Get-FileHash $result.Keyring).Hash
     }
 }
+
+Describe 'Select-NewestKeyringEntry' {
+    It 'picks the keyring package with the highest version, comparing the counter as a number' {
+        $index = @(
+            [ordered]@{ Package = 'shortarrow-archive-keyring'; Version = '2026.10.21.9'; Architecture = 'all' }
+            [ordered]@{ Package = 'shortarrow-archive-keyring'; Version = '2026.10.21.10'; Architecture = 'all' }
+            [ordered]@{ Package = 'runex'; Version = '2027.1.1.1'; Architecture = 'amd64' }
+        )
+
+        (Select-NewestKeyringEntry -Index $index).Version | Should -Be '2026.10.21.10'
+    }
+
+    It 'returns nothing when the index holds no keyring package' {
+        Select-NewestKeyringEntry -Index @([ordered]@{ Package = 'runex'; Version = '0.1.21-1'; Architecture = 'amd64' }) |
+            Should -BeNullOrEmpty
+    }
+}
+
+Describe 'Test-KeyringPackageCurrent' -Tag 'gpg', 'dpkg' {
+    BeforeAll {
+        $gpgHome = New-TempDirectory
+        $keyring = New-TempDirectory
+        $output = New-TempDirectory
+        $keys = foreach ($uid in 'signing', 'standby') {
+            & gpg --homedir $gpgHome --batch --pinentry-mode loopback --passphrase '' --quick-generate-key $uid ed25519 sign 1d 2>$null
+            $lines = & gpg --homedir $gpgHome --batch --with-colons --list-keys "=$uid"
+            $fpr = ($lines | Where-Object { $_ -like 'fpr:*' } | Select-Object -First 1).Split(':')[9]
+            & gpg --homedir $gpgHome --batch --yes --armor --output (Join-Path $keyring "$fpr.asc") --export $fpr
+            $fpr
+        }
+        $package = (New-KeyringPackage -KeyringDirectory $keyring -Version '2026.10.21.1' -OutputDirectory $output).Package
+    }
+
+    AfterAll {
+        & gpgconf --homedir $gpgHome --kill gpg-agent 2>$null
+        Remove-Item -Recurse -Force $gpgHome, $keyring, $output -ErrorAction SilentlyContinue
+    }
+
+    It 'holds when the package carries exactly the keys under keyring/' {
+        Test-KeyringPackageCurrent -Package $package -KeyringDirectory $keyring | Should -BeTrue
+    }
+
+    It 'fails when keyring/ gained a key' {
+        & gpg --homedir $gpgHome --batch --pinentry-mode loopback --passphrase '' --quick-generate-key 'next' ed25519 sign 1d 2>$null
+        $more = New-TempDirectory
+        try {
+            Copy-Item (Join-Path $keyring '*.asc') $more
+            & gpg --homedir $gpgHome --batch --yes --armor --output (Join-Path $more 'next.asc') --export '=next'
+            Test-KeyringPackageCurrent -Package $package -KeyringDirectory $more | Should -BeFalse
+        }
+        finally { Remove-Item -Recurse -Force $more }
+    }
+
+    It 'fails when keyring/ dropped a key' {
+        $fewer = New-TempDirectory
+        try {
+            Copy-Item (Join-Path $keyring "$($keys[0]).asc") $fewer
+            Test-KeyringPackageCurrent -Package $package -KeyringDirectory $fewer | Should -BeFalse
+        }
+        finally { Remove-Item -Recurse -Force $fewer }
+    }
+}
