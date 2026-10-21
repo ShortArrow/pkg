@@ -391,5 +391,15 @@ Also on 2026-10-20, on `https://pkg.shortarrow.jp`, between 04:01 and
 - Redeploying `public/` from `main` answered 404 for `apt/InRelease`
   and the pool redirect again.
 
-Not yet verified: `apt` itself against `https://pkg.shortarrow.jp`. It
-is checked there before the first publish.
+On 2026-10-21, after the first rebuild, deployed from `main` at 016eab2
+as Worker version 10bcc496, against `https://pkg.shortarrow.jp/apt`:
+
+- In `debian:bookworm` and `ubuntu:24.04` containers on amd64 and arm64
+  GitHub runners, the install guide's steps downloaded the keyring,
+  `apt update` verified `InRelease` against it, and
+  `shortarrow-archive-keyring` 2026.10.21.1 installed by name.
+- In `debian:bookworm` and `ubuntu:24.04` containers on amd64, `apt`
+  installed `runex` 0.1.21-1 and `gitreant` 0.3.0-1 by name through the
+  `pool/` redirect to their release assets, and `gitreant --version`
+  printed `gitreant 0.3.0`. Asking for `runex` 0.1.99-1, which the index
+  does not hold, failed.
