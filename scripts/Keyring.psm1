@@ -23,6 +23,38 @@ function Get-NextKeyringVersion {
     "$day.$($highest + 1)"
 }
 
+function Write-BinaryKeyring {
+    <#
+    .SYNOPSIS
+    Writes every *.asc key in KeyringDirectory, in file name order and dearmored, to one binary keyring at Path.
+
+    .DESCRIPTION
+    This is the form APT's signed-by and gpgv's --keyring read. Needs gpg; the caller's
+    GnuPG home is not touched.
+    #>
+    param(
+        [string] $KeyringDirectory,
+        [string] $Path
+    )
+
+    $work = Join-Path ([System.IO.Path]::GetTempPath()) ([System.IO.Path]::GetRandomFileName())
+    New-Item -ItemType Directory -Path $work | Out-Null
+    try {
+        $keys = foreach ($asc in Get-ChildItem $KeyringDirectory -Filter '*.asc' | Sort-Object Name) {
+            $binary = Join-Path $work "$($asc.BaseName).gpg"
+            $output = & gpg --homedir $work --batch --yes --output $binary --dearmor $asc.FullName 2>&1
+            if ($LASTEXITCODE -ne 0) { throw "Dearmoring $($asc.Name) failed: $($output | Out-String)" }
+            [System.IO.File]::ReadAllBytes($binary)
+        }
+        if (-not $keys) { throw "$KeyringDirectory holds no *.asc key." }
+        [System.IO.File]::WriteAllBytes($Path, [byte[]] $keys)
+    }
+    finally {
+        & gpgconf --homedir $work --kill gpg-agent 2>$null
+        Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue
+    }
+}
+
 function Get-KeyringControl([string] $Version) {
     @(
         "Package: $packageName"
@@ -62,13 +94,7 @@ function New-KeyringPackage {
     New-Item -ItemType Directory -Path $work | Out-Null
     try {
         $keyring = Join-Path $OutputDirectory "$packageName.gpg"
-        $keys = foreach ($asc in Get-ChildItem $KeyringDirectory -Filter '*.asc' | Sort-Object Name) {
-            $binary = Join-Path $work "$($asc.BaseName).gpg"
-            $output = & gpg --homedir $work --batch --yes --output $binary --dearmor $asc.FullName 2>&1
-            if ($LASTEXITCODE -ne 0) { throw "Dearmoring $($asc.Name) failed: $($output | Out-String)" }
-            [System.IO.File]::ReadAllBytes($binary)
-        }
-        [System.IO.File]::WriteAllBytes($keyring, [byte[]] $keys)
+        Write-BinaryKeyring -KeyringDirectory $KeyringDirectory -Path $keyring
 
         $root = Join-Path $work 'root'
         $installed = Join-Path $root $installedPath
@@ -84,9 +110,8 @@ function New-KeyringPackage {
         [pscustomobject]@{ Keyring = $keyring; Package = $package }
     }
     finally {
-        & gpgconf --homedir $work --kill gpg-agent 2>$null
         Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue
     }
 }
 
-Export-ModuleMember -Function Get-NextKeyringVersion, New-KeyringPackage
+Export-ModuleMember -Function Get-NextKeyringVersion, Write-BinaryKeyring, New-KeyringPackage
