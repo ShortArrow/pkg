@@ -25,7 +25,8 @@ version=$2
 upstream=$3
 shift 3
 
-apt-cache madison "$package" | grep -F "| $version |"
+apt-cache madison "$package" | tee /dev/stderr |
+  awk -F'|' -v want="$version" '{ gsub(/ /, "", $2) } $2 == want { found = 1 } END { exit !found }'
 apt-get install -y -qq "$package=$version" >/dev/null
 output=$("$@")
 echo "$output"
