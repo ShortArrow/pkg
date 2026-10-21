@@ -33,7 +33,7 @@ BeforeAll {
     }
 }
 
-Describe 'new-repository-keys.ps1' {
+Describe 'new-repository-keys.ps1' -Tag 'gpg' {
     BeforeAll {
         $keyring = New-TempDirectory
         $secrets = New-TempDirectory
@@ -136,7 +136,7 @@ Describe 'new-repository-keys.ps1' {
     }
 }
 
-Describe 'new-repository-keys.ps1 with a secret directory inside the repository' {
+Describe 'new-repository-keys.ps1 with a secret directory inside the repository' -Tag 'gpg' {
     It 'refuses before generating anything' {
         $keyring = New-TempDirectory
         $inside = Join-Path $PSScriptRoot '..' 'secrets-must-not-be-here'

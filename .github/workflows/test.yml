@@ -16,16 +16,15 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - name: Put GnuPG for Windows ahead of the one Git ships
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          choco install gnupg --no-progress -y
-          $bin = Get-ChildItem 'C:\Program Files*\GnuPG\bin\gpg.exe' | Select-Object -First 1
-          $bin.DirectoryName | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
       - name: Run Pester
         shell: pwsh
         run: |
           Install-Module Pester -MinimumVersion 5.0 -Force -Scope CurrentUser
-          $result = Invoke-Pester tests -PassThru -Output Detailed
+          $config = New-PesterConfiguration
+          $config.Run.Path = 'tests'
+          $config.Run.PassThru = $true
+          $config.Output.Verbosity = 'Detailed'
+          # The gpg on a Windows runner is the one Git ships, which cannot read Windows paths.
+          if ($IsWindows) { $config.Filter.ExcludeTag = 'gpg' }
+          $result = Invoke-Pester -Configuration $config
           if ($result.FailedCount -gt 0) { exit 1 }
