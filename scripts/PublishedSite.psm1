@@ -129,6 +129,7 @@ function New-FrontPage([string] $KeyringDirectory) {
 <style>
 body { font-family: system-ui, sans-serif; line-height: 1.5; max-width: 46rem; margin: 2rem auto; padding: 0 1rem; }
 code { font-family: ui-monospace, monospace; }
+pre { overflow-x: auto; margin-bottom: 0.25rem; }
 @media (prefers-color-scheme: dark) { body { background: #111; color: #ddd; } a { color: #8ab4f8; } }
 </style>
 </head>
@@ -142,9 +143,19 @@ It is maintained by <a href="https://github.com/ShortArrow">ShortArrow</a> and b
 The signing key signs the repository; the standby key takes over when the signing key has to be replaced.</p>
 <p>To check a downloaded keyring, compare the fingerprints this prints with the ones below:</p>
 <pre><code>curl -fsSL https://pkg.shortarrow.jp/apt/shortarrow-archive-keyring.gpg | gpg --show-keys</code></pre>
+<button type="button" class="copy">Copy</button>
 <ul>
 $($keys -join "`n")
 </ul>
+<script>
+for (const button of document.querySelectorAll('button.copy')) {
+  button.addEventListener('click', async () => {
+    await navigator.clipboard.writeText(button.previousElementSibling.textContent);
+    button.textContent = 'Copied';
+    setTimeout(() => { button.textContent = 'Copy'; }, 1500);
+  });
+}
+</script>
 </body>
 </html>
 
