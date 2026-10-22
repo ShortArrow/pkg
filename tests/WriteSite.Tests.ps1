@@ -93,6 +93,12 @@ Describe 'Write-Site' -Tag 'gpg' {
             Should -Match ([regex]::Escape('curl -fsSL https://pkg.shortarrow.jp/apt/shortarrow-archive-keyring.gpg | gpg --show-keys'))
     }
 
+    It 'points the front page''s icons at those of www.shortarrow.jp' {
+        $page = [System.IO.File]::ReadAllText((Join-Path $site 'index.html'))
+        $page | Should -Match ([regex]::Escape('<link rel="icon" type="image/svg+xml" href="https://www.shortarrow.jp/images/favicon.svg">'))
+        $page | Should -Match ([regex]::Escape('<link rel="icon" type="image/png" href="https://www.shortarrow.jp/favicon.ico">'))
+    }
+
     It 'puts each architecture''s own entries and the architecture-independent ones in its Packages, and the same text in Packages.gz' {
         $binary = Join-Path $site 'apt' 'dists' 'stable' 'main' 'binary-arm64'
         $text = [System.IO.File]::ReadAllText((Join-Path $binary 'Packages'))

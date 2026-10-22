@@ -124,6 +124,8 @@ function New-FrontPage([string] $KeyringDirectory) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>pkg.shortarrow.jp</title>
+<link rel="icon" type="image/svg+xml" href="https://www.shortarrow.jp/images/favicon.svg">
+<link rel="icon" type="image/png" href="https://www.shortarrow.jp/favicon.ico">
 <style>
 body { font-family: system-ui, sans-serif; line-height: 1.5; max-width: 46rem; margin: 2rem auto; padding: 0 1rem; }
 code { font-family: ui-monospace, monospace; }
