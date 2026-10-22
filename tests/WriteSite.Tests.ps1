@@ -93,6 +93,14 @@ Describe 'Write-Site' -Tag 'gpg' {
             Should -Match ([regex]::Escape('curl -fsSL https://pkg.shortarrow.jp/apt/shortarrow-archive-keyring.gpg | gpg --show-keys'))
     }
 
+    It 'gives every command on the front page a button that copies it' {
+        $page = [System.IO.File]::ReadAllText((Join-Path $site 'index.html'))
+        $commands = [regex]::Matches($page, '<pre><code>').Count
+        $commands | Should -BeGreaterThan 0
+        [regex]::Matches($page, '</code></pre>\s*<button type="button" class="copy">Copy</button>').Count | Should -Be $commands
+        $page | Should -Match ([regex]::Escape('navigator.clipboard.writeText'))
+    }
+
     It 'points the front page''s icons at those of www.shortarrow.jp' {
         $page = [System.IO.File]::ReadAllText((Join-Path $site 'index.html'))
         $page | Should -Match ([regex]::Escape('<link rel="icon" type="image/svg+xml" href="https://www.shortarrow.jp/images/favicon.svg">'))
