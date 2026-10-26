@@ -112,6 +112,11 @@ function Write-Gzip([string] $Path, [byte[]] $Bytes) {
     try { $stream.Write($Bytes, 0, $Bytes.Length) } finally { $stream.Dispose() }
 }
 
+function New-CommandBlock([string] $Command) {
+    $shown = [System.Net.WebUtility]::HtmlEncode(($Command -replace ' \| ', " \`n  | "))
+    "<div class=`"command`"><pre><code>$shown</code></pre>`n<button type=`"button`" class=`"copy`" data-command=`"$([System.Net.WebUtility]::HtmlEncode($Command))`">Copy</button></div>"
+}
+
 function New-FrontPage([string] $KeyringDirectory) {
     $keys = foreach ($key in Get-KeyringKey -KeyringDirectory $KeyringDirectory) {
         $fingerprint = $key.Fingerprint -replace '(.{4})(?!$)', '$1 '
@@ -152,16 +157,14 @@ It is maintained by <a href="https://github.com/ShortArrow">ShortArrow</a> and b
 <p><a href="/apt/shortarrow-archive-keyring.gpg">shortarrow-archive-keyring.gpg</a> holds these public keys.
 The signing key signs the repository; the standby key takes over when the signing key has to be replaced.</p>
 <p>To check a downloaded keyring, compare the fingerprints this prints with the ones below:</p>
-<div class="command"><pre><code>curl -fsSL https://pkg.shortarrow.jp/apt/shortarrow-archive-keyring.gpg \
-  | gpg --show-keys</code></pre>
-<button type="button" class="copy">Copy</button></div>
+$(New-CommandBlock 'curl -fsSL https://pkg.shortarrow.jp/apt/shortarrow-archive-keyring.gpg | gpg --show-keys')
 <ul class="keys">
 $($keys -join "`n")
 </ul>
 <script>
 for (const button of document.querySelectorAll('button.copy')) {
   button.addEventListener('click', async () => {
-    await navigator.clipboard.writeText(button.previousElementSibling.textContent);
+    await navigator.clipboard.writeText(button.dataset.command);
     button.textContent = 'Copied';
     setTimeout(() => { button.textContent = 'Copy'; }, 1500);
   });
