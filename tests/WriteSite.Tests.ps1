@@ -90,14 +90,14 @@ Describe 'Write-Site' -Tag 'gpg' {
 
     It 'gives on the front page the command that prints the fingerprints of the downloaded keyring' {
         [System.IO.File]::ReadAllText((Join-Path $site 'index.html')) |
-            Should -Match ([regex]::Escape('curl -fsSL https://pkg.shortarrow.jp/apt/shortarrow-archive-keyring.gpg | gpg --show-keys'))
+            Should -Match ([regex]::Escape("curl -fsSL https://pkg.shortarrow.jp/apt/shortarrow-archive-keyring.gpg \`n  | gpg --show-keys"))
     }
 
     It 'gives every command on the front page a button that copies it' {
         $page = [System.IO.File]::ReadAllText((Join-Path $site 'index.html'))
         $commands = [regex]::Matches($page, '<pre><code>').Count
         $commands | Should -BeGreaterThan 0
-        [regex]::Matches($page, '</code></pre>\s*<button type="button" class="copy">Copy</button>').Count | Should -Be $commands
+        [regex]::Matches($page, '<div class="command"><pre><code>[^<]*</code></pre>\s*<button type="button" class="copy">Copy</button></div>').Count | Should -Be $commands
         $page | Should -Match ([regex]::Escape('navigator.clipboard.writeText'))
     }
 

@@ -115,7 +115,7 @@ function Write-Gzip([string] $Path, [byte[]] $Bytes) {
 function New-FrontPage([string] $KeyringDirectory) {
     $keys = foreach ($key in Get-KeyringKey -KeyringDirectory $KeyringDirectory) {
         $fingerprint = $key.Fingerprint -replace '(.{4})(?!$)', '$1 '
-        "<li><code>$fingerprint</code><br>$([System.Net.WebUtility]::HtmlEncode($key.UserId))</li>"
+        "<li><code>$fingerprint</code><span>$([System.Net.WebUtility]::HtmlEncode($key.UserId))</span></li>"
     }
     @"
 <!doctype html>
@@ -127,10 +127,20 @@ function New-FrontPage([string] $KeyringDirectory) {
 <link rel="icon" type="image/svg+xml" href="https://www.shortarrow.jp/images/favicon.svg">
 <link rel="icon" type="image/png" href="https://www.shortarrow.jp/favicon.ico">
 <style>
-body { font-family: system-ui, sans-serif; line-height: 1.5; max-width: 46rem; margin: 2rem auto; padding: 0 1rem; }
-code { font-family: ui-monospace, monospace; }
-pre { overflow-x: auto; margin-bottom: 0.25rem; }
-@media (prefers-color-scheme: dark) { body { background: #111; color: #ddd; } a { color: #8ab4f8; } }
+:root { color-scheme: light dark; --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --surface: #f6f8fa; --border: #d1d9e0; --link: #0969da; }
+@media (prefers-color-scheme: dark) { :root { --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --surface: #151b23; --border: #3d444d; --link: #4493f8; } }
+body { background: var(--bg); color: var(--fg); font-family: system-ui, sans-serif; line-height: 1.6; max-width: 46rem; margin: 3rem auto; padding: 0 1rem; }
+a { color: var(--link); }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em; }
+p > code { background: var(--surface); border-radius: 4px; padding: 0.1em 0.35em; }
+.command { position: relative; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+.command pre { margin: 0; padding: 0.85rem 5.5rem 0.85rem 1rem; overflow-x: auto; }
+.copy { position: absolute; top: 0.6rem; right: 0.6rem; font: inherit; font-size: 0.8rem; padding: 0.15rem 0.7rem; color: var(--muted); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; }
+.copy:hover { color: var(--fg); border-color: var(--muted); }
+.keys { list-style: none; padding: 0; }
+.keys li { border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 0.5rem; }
+.keys code { display: block; font-size: 0.95rem; letter-spacing: 0.02em; }
+.keys span { color: var(--muted); font-size: 0.9rem; }
 </style>
 </head>
 <body>
@@ -142,9 +152,10 @@ It is maintained by <a href="https://github.com/ShortArrow">ShortArrow</a> and b
 <p><a href="/apt/shortarrow-archive-keyring.gpg">shortarrow-archive-keyring.gpg</a> holds these public keys.
 The signing key signs the repository; the standby key takes over when the signing key has to be replaced.</p>
 <p>To check a downloaded keyring, compare the fingerprints this prints with the ones below:</p>
-<pre><code>curl -fsSL https://pkg.shortarrow.jp/apt/shortarrow-archive-keyring.gpg | gpg --show-keys</code></pre>
-<button type="button" class="copy">Copy</button>
-<ul>
+<div class="command"><pre><code>curl -fsSL https://pkg.shortarrow.jp/apt/shortarrow-archive-keyring.gpg \
+  | gpg --show-keys</code></pre>
+<button type="button" class="copy">Copy</button></div>
+<ul class="keys">
 $($keys -join "`n")
 </ul>
 <script>
