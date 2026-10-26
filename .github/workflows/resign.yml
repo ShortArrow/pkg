@@ -16,7 +16,7 @@ jobs:
       group: registry
       queue: max
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Build the re-signed site
         shell: pwsh
         env:
@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     container: debian:bookworm
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - run: sh scripts/check-install.sh https://pkg.shortarrow.jp/apt
 
   report:

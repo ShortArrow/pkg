@@ -17,7 +17,7 @@ jobs:
       GH_REPO: ${{ github.repository }}
       GITHUB_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Start a publishing run for each unpublished release
         run: |
           pwsh -File scripts/find-unpublished.ps1 | while read -r repository tag; do

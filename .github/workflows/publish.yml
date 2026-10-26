@@ -49,7 +49,7 @@ jobs:
       deployed: ${{ steps.build.outputs.deployed }}
       packages: ${{ steps.build.outputs.packages }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Build the next site
         id: build
         shell: pwsh
@@ -90,7 +90,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     container: ${{ matrix.image }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Install from the live repository
         env:
           PACKAGES: ${{ needs.update.outputs.packages }}
