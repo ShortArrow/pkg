@@ -186,6 +186,11 @@ are left to the record that adds it (ivi-cli #247).
   accepts jobs from `main` only. Only the workflows of this repository
   reach them, so pushing a tag or changing a workflow in a project's
   repository does not.
+- Every action the workflows use is pinned to a commit, with the tag it
+  was taken from in a comment (`actions/checkout@<sha> # v7.0.1`), and
+  moves only when a pull request changes that line. A tag can be moved to
+  other code after it is reviewed, and the jobs that check out this
+  repository hold the keys.
 - Every run except the weekly re-signing first waits in a second
   environment, `approve`, which holds no secret and requires the
   maintainer's approval. A release, or the assets of one, replaced by
@@ -325,6 +330,18 @@ pull requests and release workflow.
   twice, and the approval would rest on whether GitHub lets a job
   waiting for it hold the concurrency group, which its documentation
   does not say.
+- **Actions referenced by tag (`actions/checkout@v4`).** Fixes would
+  arrive without a pull request, and so would any code the tag was moved
+  to by someone who took over the action's repository, run in a job
+  holding the keys.
+- **`gh-actions-lock`, which writes the commit of every action and of
+  the actions they call into a lockfile and checks it in CI and on the
+  runner.** Its advantage over a pinned `uses:` line is the actions an
+  action calls, and the one action used, `actions/checkout`, calls none.
+  It is a public preview whose lockfile format and flags may change
+  before 1.0, and it needs a workflow of its own to verify the lockfile.
+  Worth taking up once a workflow uses an action that calls others, such
+  as a shared composite action, or once it reaches 1.0.
 
 ## Consequences
 
