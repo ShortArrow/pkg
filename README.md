@@ -45,5 +45,6 @@ curl -fsSL https://pkg.shortarrow.jp/apt/shortarrow-archive-keyring.gpg \
   && echo OK
 ```
 
-The design is in [ADR 0001](docs/adr/0001-package-registry.md), and how
-to run the registry in [docs/operations.md](docs/operations.md).
+The design is in the decision records under [docs/adr/](docs/adr/),
+starting with [ADR 0001](docs/adr/0001-package-registry.md), and how to
+run the registry in [docs/operations.md](docs/operations.md).

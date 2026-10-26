@@ -1,6 +1,7 @@
 # Operating the registry
 
-The workflows in `.github/workflows/` carry out ADR 0001 §6 and §7.
+The workflows in `.github/workflows/` carry out [ADR 0005](adr/0005-publishing.md),
+[ADR 0004](adr/0004-index-freshness.md) and [ADR 0007](adr/0007-checks.md).
 Every run that changes the site deploys it to the `pkg` Worker with
 `wrangler deploy`, after building it with `scripts/update-registry.ps1`.
 

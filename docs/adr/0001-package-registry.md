@@ -18,24 +18,14 @@ relative to the repository's base URL, and APT checks the file's size
 and SHA-256 against that entry after downloading it. Alpine's `apk`
 works the same way with a signed `APKINDEX.tar.gz`.
 
-That rules out GitHub Releases as the repository itself. Release assets
-sit in one flat directory per tag with no index, and a `Filename:` cannot
-name another host or another tag's directory. The `releases/latest/download/`
-URL resolves to the release marked Latest, so a repository based there
-could only ever offer that one version.
-
-Size also matters. The self-contained linux-x64 archive of ivi-cli v0.4.0
-is 47.2 MB and the linux-arm64 one 45.0 MB, so ivi-cli alone adds about
-90 MB of packages per release. GitHub Pages limits a site to 1 GB, which
-about eleven ivi-cli releases would exceed, and Cloudflare Workers static
-assets refuse any single file over 25 MiB.
+Packages are large. The self-contained linux-x64 archive of ivi-cli
+v0.4.0 is 47.2 MB and the linux-arm64 one 45.0 MB, so ivi-cli alone adds
+about 90 MB of packages per release.
 
 One host and one set of keys for every project means one source line and
 one keyring on a user's machine, however many of the tools it installs.
 
 ## Decision
-
-### 1. What this repository holds, and what it does not
 
 This repository is the registry behind `https://pkg.shortarrow.jp`: the
 signed indexes, the repository keys, the Cloudflare Worker that serves
@@ -47,18 +37,14 @@ the registry indexes those assets where they are. What a package
 contains, its name and its `Depends` are the project's to decide and are
 recorded in the project.
 
-### 2. Where each part lives
-
 The `shortarrow.jp` zone is on Cloudflare.
 
 - The metadata, `dists/`, the keyring file and the keyring package are
   the static assets of a Cloudflare Worker that has no script. They are
-  small and change on every release and every re-signing (§5). Requests
-  for static assets are free and unlimited, and a request no asset or
-  rule matches gets a 404. The root of the host serves one page, built
-  from `keyring/` on every deploy, that names the repository, its
-  maintainer and the fingerprint of every key, so a reader can check the
-  keyring they downloaded without the page ever disagreeing with it.
+  small and change on every release and every re-signing. Requests for
+  static assets are free and unlimited, and a request no asset or rule
+  matches gets a 404. The root of the host serves the page of
+  [ADR 0003](0003-repository-keys.md) that names the keys.
 - The packages are GitHub Release assets of the project that built them
   and nothing else. The repository's `pool/<repo>/<tag>/<file>` path
   answers with a 302 to
@@ -72,11 +58,13 @@ The `shortarrow.jp` zone is on Cloudflare.
 
   A redirect applies whether or not an asset matches, so `pool/` never
   holds a file of its own.
-
-Cloudflare Pages would serve the same files with the same `_redirects`.
-Workers static assets were chosen because Cloudflare's documentation
-describes Workers as having the broader feature set and offers a
-migration from Pages to Workers, not the reverse.
+- The Worker's `wrangler` configuration lives in this repository, with
+  its assets directory and `pkg.shortarrow.jp` as its Custom Domain, so
+  every deploy, the first and a rebuild included, attaches the hostname;
+  Cloudflare creates the DNS record and the certificate for it. The
+  hostname must not already have a CNAME record, and every path on it
+  goes to this Worker. Attaching a Custom Domain needs only the Workers
+  Scripts Write permission the deploy token already has.
 
 A package therefore has one copy, in the release that built it, and
 every version stays installable without a size limit. The user's source
@@ -87,9 +75,7 @@ Trust rests on the signature alone. A file changed behind the redirect
 fails APT's size or hash check against the signed `Packages`, and the
 redirect target needs no trust of its own.
 
-### 3. Layout
-
-The standard APT layout, with one suite:
+The layout is the standard APT one, with one suite:
 
 ```
 apt/
@@ -102,309 +88,62 @@ apt/
 └── pool/<repo>/<tag>/<file>.deb   (redirected)
 ```
 
-A flat repository (`Packages` and `Release` beside the files, source
-line ending in `./`) would serve one package too. The standard layout
-was chosen because the tools that generate repositories produce it at no
-extra cost, and because it leaves room to add a component or an
-architecture without changing the line every user has already written.
 An APK repository, when one is added, sits beside `apt/` under the same
 Worker with its own redirect rule. Whether `apk` follows the redirect to
 GitHub's asset host, and how its keys reach `/etc/apk/keys/` and rotate,
 are left to the record that adds it (ivi-cli #247).
 
-### 4. What goes into the index
-
-- Only stable releases. A version containing `-` would sort after the
-  final release in Debian's ordering (`0.4.0-beta.1` > `0.4.0`), so the
-  publishing job refuses one rather than relying on the release channel
-  alone. A maintenance release on an older line does enter: APT picks
-  the highest version.
-- The index is keyed by package name and version. Re-running a release,
-  or re-creating its tag, rewrites that version's entries instead of
-  leaving hashes of assets that no longer exist.
-- Every package asset is checked against the `SHA256SUMS` asset of the
-  release it came from before it is indexed.
-
-### 5. Signing keys and freshness
-
-- The repository has its own Ed25519 keys, not the maintainer's personal
-  key, so the key that signs every update can be replaced without
-  touching anything else. There are two: a signing key, which expires
-  after three years, and a standby key, kept offline and never used
-  until it is needed. The standby key has no expiry until it becomes the
-  signing key, so it never lapses unused in storage. The public half of
-  each lives under `keyring/` as `<fingerprint>.asc`, a name that stays
-  true when the standby key is promoted.
-- A keyring package, `shortarrow-archive-keyring`, `Architecture: all`
-  and built from the public keys under `keyring/` in this repository,
-  installs `/usr/share/keyrings/shortarrow-archive-keyring.gpg` with the
-  public half of every current key, standby included, the way Debian's
-  own `debian-archive-keyring` does, and is named after it.
-  It is versioned by the date it was built with a counter
-  (`2026.10.20.1`, then `2026.10.20.2` for a second change that day),
-  independently of any project, and rebuilt only when its keys change.
-  It is a package of its own so that removing a project's package leaves
-  the keyring, and with it the source, working. Being a few kilobytes,
-  it is served from the site itself under `keyring/`, not through the
-  redirect, and appears in both architectures' `Packages`.
-- The install guide of each project downloads the same keyring,
-  `https://pkg.shortarrow.jp/apt/shortarrow-archive-keyring.gpg`, to the
-  same path as its first step, writes the source line
-
-  ```
-  deb [signed-by=/usr/share/keyrings/shortarrow-archive-keyring.gpg] https://pkg.shortarrow.jp/apt stable main
-  ```
-
-  to `/etc/apt/sources.list.d/shortarrow.list`, one file for every
-  project so that following a second project's guide rewrites it
-  unchanged, and installs the keyring package by name
-  along with the project's package, so APT marks the keyring as
-  installed by hand. Pulled in only as a dependency, it would be marked
-  automatic, and `apt autoremove` after removing the project's package
-  would delete it. Installing the keyring package takes the file over,
-  and every upgrade replaces it. Keys change on users' machines through
-  `apt upgrade`, never by hand after the first step.
-- Rotation: a keyring that adds the next signing key ships at least a
-  year before the current one expires, and `InRelease` is signed by both
-  until it does. A machine that never upgrades in that year stops
-  verifying when the old key expires.
-- Compromise: the standby key becomes the signing key at once, its
-  private half moving into the environment below, and the next keyring
-  drops the compromised key and adds a newly generated standby. The
-  published index may have been altered with the compromised key, so the
-  repository is rebuilt from the GitHub Releases (§6) rather than
-  updated. Clients already trust the standby key, so the replacement
-  reaches them through an ordinary upgrade. Until a machine takes that
-  upgrade, the compromised key still verifies there, and a package the
-  attacker signed in that window, with a keyring of their choosing and
-  maintainer scripts that run as root, cannot be undone by the standby
-  key. A machine that holds or pins the keyring package never receives
-  a new key.
-- The keys and a Cloudflare API token limited to editing Workers
-  scripts on the one account, with that account's ID, are secrets of a
-  GitHub Actions environment, `publish`, in this repository, which
-  accepts jobs from `main` only. Only the workflows of this repository
-  reach them, so pushing a tag or changing a workflow in a project's
-  repository does not.
-- Every action the workflows use is pinned to a commit, with the tag it
-  was taken from in a comment (`actions/checkout@<sha> # v7.0.1`), and
-  moves only when a pull request changes that line. A tag can be moved to
-  other code after it is reviewed, and the jobs that check out this
-  repository hold the keys.
-- Every run except the weekly re-signing first waits in a second
-  environment, `approve`, which holds no secret and requires the
-  maintainer's approval. A release, or the assets of one, replaced by
-  someone who took over a project's repository therefore reaches users
-  only after the maintainer has seen it. The re-signing does not wait,
-  because it must keep running when no one is watching (below), and it
-  adds nothing that `main` does not already hold. The approval is a job
-  of its own, outside the concurrency group of §6, so a run waiting for
-  it never holds up the re-signing.
-- `Release` carries `Date` and `Valid-Until`, 90 days after signing. A
-  scheduled workflow re-signs the metadata weekly. Without an expiry, an
-  attacker or a stale mirror could keep serving an old, validly signed
-  index and hide a fix; with it, a client refuses metadata that has not
-  been re-signed for 90 days. If re-signing stops, users see an expired
-  repository rather than a silently stale one.
-
-### 6. Publishing
-
-A workflow in this repository finds new releases itself: every hour,
-and when run by hand with a project and a tag, it lists the stable
-GitHub Releases of the projects this repository lists, through the
-public API with its own `GITHUB_TOKEN`, and starts one publishing run
-for each project and version not yet in the index. A project's
-repository holds no credential for this one and sends it nothing. The
-run asks for approval (§5) within about an hour of the release, or at
-once when the workflow is run by hand, and the release reaches APT when
-the maintainer approves it. The hourly poll starts a run for a release
-only once; a run that is still waiting, was rejected or failed is not
-started again by the poll, so an unanswered approval does not pile up
-a new request every hour. A release with no `.deb` asset, such as one made before
-its project built packages, is skipped and never retried; one with `.deb`
-assets but no `SHA256SUMS` fails its run. A publishing run:
-
-1. Refuse a release that GitHub marks as a pre-release, or whose tag
-   carries a `-` after its version (`v0.5.0-beta.1`). The check is on
-   the tag; a package's own `Version` carries the Debian revision
-   (`0.5.0-1`) and is not refused for it.
-2. Fetch the published site: `InRelease`, `Packages`, and every file the
-   site serves itself, the keyring and its packages. Verify `InRelease`
-   against the keys under `keyring/`, and every fetched file against its
-   hash in `Packages`. Any failure stops the job; it never signs what it
-   could not verify.
-3. Download the release's package assets and its `SHA256SUMS`, check
-   each package against it, and replace that package's entries for this
-   version with entries computed from those files, for every
-   architecture.
-4. If the keys under `keyring/` differ from those in the newest published
-   keyring package, in either direction, build a new keyring package and
-   add it.
-5. Write `Release` with `Date` and `Valid-Until`, sign `InRelease`, and
-   deploy the fetched site with these changes as one new version of the
-   Worker, with `wrangler deploy`. Each version serves the files its
-   upload manifest lists and no others, so a file the job did not carry
-   forward would disappear.
-
-A rebuild replaces steps 2 and 3: the job builds the index from the
-package assets of every stable release of every project the registry
-lists, each checked against its release's `SHA256SUMS` and skipped or
-failed by the same rule, and the keyring
-package from `keyring/`, trusting nothing on the live site. It creates
-the repository the first time, and recovers it after a compromise or a
-failed verification.
-
-A failed run is retried by running it again; the GitHub Release it
-reads is already in place. The weekly re-signing also runs step 4, so a
-keyring change merged to `main` ships within a week, or at once when the
-workflow is run by hand. A manual withdrawal removes one package
-version's entries and re-signs; machines that installed a withdrawn
-version keep it, and `apt` offers the highest remaining version. All of
-these share one concurrency group with `queue: max`, so no two of them
-read and deploy the site at the same time, and none waiting behind
-another is cancelled. Without `queue: max`, GitHub keeps one pending run
-per group and cancels the older one.
-
-The Worker's `wrangler` configuration lives in this repository, with its
-assets directory and `pkg.shortarrow.jp` as its Custom Domain, so every
-deploy, the first and a rebuild included, attaches the hostname;
-Cloudflare creates the DNS record and the certificate for it. The
-hostname must not already have a CNAME record, and every path on it goes
-to this Worker. Attaching a Custom Domain needs only the Workers Scripts
-Write permission the deploy token already has.
-
-### 7. Checks
-
-- **After publishing.** Once a run deploys, a job on each architecture
-  follows the project's install guide against
-  `https://pkg.shortarrow.jp/apt` in fresh `debian:bookworm` and
-  `ubuntu:24.04` containers. It checks that `apt-cache madison <package>`
-  lists the version just published, installs that version by name and
-  runs the command the project gives for checking it. It names the
-  version because a maintenance release on an older line is not the
-  highest one. This is the only check that goes through Cloudflare, the
-  `_redirects` rule and GitHub's asset URLs together. A failure of
-  Cloudflare, the redirect or the site is fixed and the run repeated. A
-  defect in the package itself cannot be fixed by a repeat: the version
-  is withdrawn and the fix ships with the project's next release.
-- **Re-signing.** The weekly re-signing ends by fetching the live
-  `InRelease` and checking that its `Date` and `Valid-Until` are the
-  ones just signed, then runs `apt update` against it in a container. A
-  deployment that reports success while the old index is still served
-  fails here; `apt update` alone would accept that index until it
-  expires. A failure of any step opens an issue, or comments on the one
-  already open, and the next successful run closes it. With weekly runs
-  and a 90-day `Valid-Until`, about twelve runs can fail before users
-  see an expired repository.
-  - A run that never starts opens no issue. GitHub disables a scheduled
-    workflow in a public repository after 60 days without activity in
-    the repository, so a quiet period longer than that is the one way
-    re-signing stops silently. The maintainer re-enables the workflow
-    and runs it by hand after such a pause.
-
-The check that a package installs at all, before anything is
-published, belongs to the project that builds it, and runs in its own
-pull requests and release workflow.
-
 ## Alternatives
 
-- **A project's release sends `repository_dispatch` to this
-  repository.** A release would reach APT at once, but sending the event
-  needs a token with Contents write on this repository, the permission
-  that also pushes commits and edits files here. Held by every project,
-  one leaked token could add a key under `keyring/`, which the next
-  re-signing would ship to every user as trusted.
-- **The maintainer attaches the Custom Domain by hand in the dashboard.**
-  A rebuild into a new account or Worker would then depend on someone
-  remembering the step.
-- **Publishing without approval.** A release would reach APT within an
-  hour with no one watching, but so would a release, or its
-  `SHA256SUMS` with its assets, replaced by someone who took over a
-  project's repository; the registry checks assets against that file,
-  not against who made it.
-- **Approval for every run, the re-signing included.** Every week would
-  need the maintainer, and a maintainer away for 90 days would leave
-  users with an expired repository.
-- **The keys in two environments, one requiring approval for publishing
-  and one without for re-signing.** The signing key would be stored
-  twice, and the approval would rest on whether GitHub lets a job
-  waiting for it hold the concurrency group, which its documentation
-  does not say.
-- **Actions referenced by tag (`actions/checkout@v4`).** Fixes would
-  arrive without a pull request, and so would any code the tag was moved
-  to by someone who took over the action's repository, run in a job
-  holding the keys.
-- **`gh-actions-lock`, which writes the commit of every action and of
-  the actions they call into a lockfile and checks it in CI and on the
-  runner.** Its advantage over a pinned `uses:` line is the actions an
-  action calls, and the one action used, `actions/checkout`, calls none.
-  It is a public preview whose lockfile format and flags may change
-  before 1.0, and it needs a workflow of its own to verify the lockfile.
-  Worth taking up once a workflow uses an action that calls others, such
-  as a shared composite action, or once it reaches 1.0.
+- **GitHub Releases as the repository itself.** Release assets sit in
+  one flat directory per tag with no index, and a `Filename:` cannot name
+  another host or another tag's directory. The `releases/latest/download/`
+  URL resolves to the release marked Latest, so a repository based there
+  could only ever offer that one version.
+- **Copying the packages to the site.** GitHub Pages limits a site to
+  1 GB, which about eleven ivi-cli releases would exceed, and Cloudflare
+  Workers static assets refuse any single file over 25 MiB.
+- **Cloudflare Pages.** It would serve the same files with the same
+  `_redirects`. Cloudflare's documentation describes Workers as having
+  the broader feature set and offers a migration from Pages to Workers,
+  not the reverse.
+- **A flat repository** (`Packages` and `Release` beside the files,
+  source line ending in `./`). It would serve one package too, but the
+  tools that generate repositories produce the standard layout at no
+  extra cost, and only the standard layout leaves room to add a
+  component or an architecture without changing the line every user has
+  already written.
+- **The maintainer attaches the Custom Domain by hand in the
+  dashboard.** A rebuild into a new account or Worker would then depend
+  on someone remembering the step.
 
 ## Consequences
 
-- `apt update` and `apt upgrade` deliver new versions, and new keys, of
-  every listed project to Debian and Ubuntu machines.
-- A project's release depends on this repository's workflow and keys to
-  reach APT users. If either is unavailable, the GitHub Release still
-  ships, and the repository lags until the run is repeated.
-- The repository must be re-signed at least every 90 days, by the
-  scheduled workflow, and a new signing key must ship a year before the
-  current one expires.
-- The standby key must be stored offline and separately from the
-  signing key, or it protects nothing.
 - Every install depends on both Cloudflare and GitHub being reachable.
+- A project's package reaches APT only through its GitHub Release, and
+  stays installable for as long as that release keeps the asset.
 
 ## Verification
 
-The facts this decision rests on, measured in `debian:bookworm`
-(apt 2.6.1) and `ubuntu:24.04` (apt 2.8.3) containers unless a fact names
-other conditions. What a deploy serves is checked on every run by the
-jobs of §7, not recorded here.
-
-**APT follows the redirect (§2).** Against a signed repository in the
-standard layout served over HTTPS:
+Measured in `debian:bookworm` (apt 2.6.1) and `ubuntu:24.04` (apt 2.8.3)
+containers, against a signed repository in the standard layout served
+over HTTPS, unless a fact names other conditions.
 
 - `apt update` and `apt install` succeed through two chained 302
   redirects from `pool/`, the shape of a GitHub asset URL.
 - With `pool/` redirected to a real release asset, ivi-cli v0.4.0's,
   `apt-get download` follows GitHub's redirects and saves a file whose
   SHA-256 matches the asset.
-
-**Trust rests on the signature (§2).**
-
 - A package changed behind the redirect is refused: by size when its
   length changes, by hash when one byte is flipped at the same length.
-- A `Packages.gz` changed without re-signing is refused by `apt update`.
-
-**Version order (§4).** `dpkg --compare-versions` in `debian:bookworm`
-gives `0.4.0-beta.1` > `0.4.0`, `0.4.0~beta.1` < `0.4.0` and `0.3.3` <
-`0.4.0`.
-
-**The keyring package and its keys (§5).**
-
-- In `debian:bookworm`, a keyring placed under `/usr/share/keyrings/` by
-  hand is taken over by a package that ships the same path: `dpkg -i`
-  replaces it without an error, `dpkg -S` then names the package as its
-  owner, and the next version of the package replaces it again.
-- An `InRelease` signed by two Ed25519 keys verifies with a keyring
-  holding only one of them, and one signed by a key that has expired in
-  the client's keyring fails with `EXPKEYSIG`.
-
-**Workers static assets (§2, §6).** With wrangler 4.151.2 and the
-assets-only Worker this repository configures:
-
-- `_redirects` is read only at the root of the assets directory. Under
-  `wrangler dev`, a request for `/apt/pool/ivi-cli/v0.4.0/SHA256SUMS`
-  that does not follow redirects answers 404 with `_redirects` under
-  `public/apt/` or with none, and 302 to
+  A `Packages.gz` changed without re-signing is refused by `apt update`.
+- With wrangler 4.151.2 and the assets-only Worker this repository
+  configures, `_redirects` is read only at the root of the assets
+  directory. Under `wrangler dev`, a request for
+  `/apt/pool/ivi-cli/v0.4.0/SHA256SUMS` that does not follow redirects
+  answers 404 with `_redirects` under `public/apt/` or with none, and 302
+  to
   `https://github.com/ShortArrow/ivi-cli/releases/download/v0.4.0/SHA256SUMS`
   with it at the root. `https://pkg.shortarrow.jp` answers the same 302
   over HTTPS, and following it saves a file whose SHA-256 matches the
   release asset.
-- A deployed version serves the files it lists and no others. A file
-  without an extension is served with status 200 and its exact contents,
-  and a file the next version leaves out answers 404 within 10 seconds of
-  that deploy, while the files it keeps are still served.

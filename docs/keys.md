@@ -1,8 +1,9 @@
 # Repository keys
 
-The repository is signed with its own Ed25519 keys, as ADR 0001 §5
-describes: a signing key that expires three years after creation, and a
-standby key kept offline until the signing key has to be replaced.
+The repository is signed with its own Ed25519 keys, as
+[ADR 0003](adr/0003-repository-keys.md) describes: a signing key that
+expires three years after creation, and a standby key kept offline until
+the signing key has to be replaced.
 
 ## Generating the keys
 
