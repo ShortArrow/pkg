@@ -30,6 +30,9 @@ Replace `runex` with any package in the table. Installing
 `shortarrow-archive-keyring` by name keeps the keyring, and the keys it
 holds up to date, after the tool is removed.
 
+To do it by hand instead, including the deb822 `.sources` format and how
+to remove it all, see [docs/installing.md](docs/installing.md).
+
 To check the keyring against [keyring/fingerprints](keyring/fingerprints),
 which is kept here, off the host that serves the keyring, run this in bash;
 it prints `OK` when they match:
