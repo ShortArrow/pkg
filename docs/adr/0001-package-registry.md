@@ -359,67 +359,52 @@ pull requests and release workflow.
 
 ## Verification
 
-On 2026-09-29, for ivi-cli's ADR 0052 before this registry was split out,
-in `debian:bookworm` (apt 2.6.1) and `ubuntu:24.04` (apt 2.8.3)
-containers, against a signed repository in the standard layout served
-over HTTPS by a local server:
+The facts this decision rests on, measured in `debian:bookworm`
+(apt 2.6.1) and `ubuntu:24.04` (apt 2.8.3) containers unless a fact names
+other conditions. What a deploy serves is checked on every run by the
+jobs of §7, not recorded here.
 
-- `apt update` and `apt install ivicli` succeeded through two chained
-  302 redirects from `pool/`, the shape of a GitHub asset URL.
-- With `pool/` redirected to the real ivi-cli v0.4.0 release asset,
-  `apt-get download` followed GitHub's redirects and saved a file whose
-  SHA-256 matched the asset.
-- A package changed behind the redirect was refused, by size when the
-  length changed and by hash when one byte was flipped at the same
-  length. A `Packages.gz` changed without re-signing was refused by
-  `apt update`.
+**APT follows the redirect (§2).** Against a signed repository in the
+standard layout served over HTTPS:
 
-`dpkg --compare-versions` in `debian:bookworm` gives `0.4.0-beta.1` >
-`0.4.0`, `0.4.0~beta.1` < `0.4.0` and `0.3.3` < `0.4.0`.
+- `apt update` and `apt install` succeed through two chained 302
+  redirects from `pool/`, the shape of a GitHub asset URL.
+- With `pool/` redirected to a real release asset, ivi-cli v0.4.0's,
+  `apt-get download` follows GitHub's redirects and saves a file whose
+  SHA-256 matches the asset.
 
-In `debian:bookworm`, a keyring placed under `/usr/share/keyrings/` by
-hand was taken over by a package that ships the same path: `dpkg -i`
-replaced it without an error, `dpkg -S` then named the package as its
-owner, and the next version of the package replaced it again. An
-`InRelease` signed by two Ed25519 keys verified with a keyring holding
-only one of them, in both containers, and one signed by a key that had
-expired in the client's keyring failed with `EXPKEYSIG`.
+**Trust rests on the signature (§2).**
 
-On 2026-10-20, with the assets-only Worker this repository configures,
-a request for `/apt/pool/ivi-cli/v0.4.0/SHA256SUMS` that did not follow
-redirects, the request `scripts/check-redirect.ps1` makes:
+- A package changed behind the redirect is refused: by size when its
+  length changes, by hash when one byte is flipped at the same length.
+- A `Packages.gz` changed without re-signing is refused by `apt update`.
 
-- Under `wrangler dev` (wrangler 4.151.2), the request answered 404
-  with `_redirects` under `public/apt/` and with no `_redirects` at all,
-  and 302 to
+**Version order (§4).** `dpkg --compare-versions` in `debian:bookworm`
+gives `0.4.0-beta.1` > `0.4.0`, `0.4.0~beta.1` < `0.4.0` and `0.3.3` <
+`0.4.0`.
+
+**The keyring package and its keys (§5).**
+
+- In `debian:bookworm`, a keyring placed under `/usr/share/keyrings/` by
+  hand is taken over by a package that ships the same path: `dpkg -i`
+  replaces it without an error, `dpkg -S` then names the package as its
+  owner, and the next version of the package replaces it again.
+- An `InRelease` signed by two Ed25519 keys verifies with a keyring
+  holding only one of them, and one signed by a key that has expired in
+  the client's keyring fails with `EXPKEYSIG`.
+
+**Workers static assets (§2, §6).** With wrangler 4.151.2 and the
+assets-only Worker this repository configures:
+
+- `_redirects` is read only at the root of the assets directory. Under
+  `wrangler dev`, a request for `/apt/pool/ivi-cli/v0.4.0/SHA256SUMS`
+  that does not follow redirects answers 404 with `_redirects` under
+  `public/apt/` or with none, and 302 to
   `https://github.com/ShortArrow/ivi-cli/releases/download/v0.4.0/SHA256SUMS`
-  with `_redirects` at the root of the assets directory. Workers read the
-  file only there.
-- On `https://pkg.shortarrow.jp`, deployed from `main` at 83332f8, the
-  request answered the same 302 over HTTPS with Cloudflare's
-  certificate, and following it with `curl -L` saved a file whose
-  SHA-256 matched the release asset. `/` answered 404.
-
-Also on 2026-10-20, on `https://pkg.shortarrow.jp`, between 04:01 and
-04:02 UTC, with throwaway files deployed from outside the repository:
-
-- A version whose assets held `apt/InRelease` and `apt/probe.txt`
-  served both with status 200 and their exact contents, the file
-  without an extension included.
-- The next version, which left `apt/probe.txt` out, answered 404 for it
-  within 10 seconds of the deploy and kept serving `apt/InRelease`.
-- Redeploying `public/` from `main` answered 404 for `apt/InRelease`
-  and the pool redirect again.
-
-On 2026-10-21, after the first rebuild, deployed from `main` at 016eab2
-as Worker version 10bcc496, against `https://pkg.shortarrow.jp/apt`:
-
-- In `debian:bookworm` and `ubuntu:24.04` containers on amd64 and arm64
-  GitHub runners, the install guide's steps downloaded the keyring,
-  `apt update` verified `InRelease` against it, and
-  `shortarrow-archive-keyring` 2026.10.21.1 installed by name.
-- In `debian:bookworm` and `ubuntu:24.04` containers on amd64, `apt`
-  installed `runex` 0.1.21-1 and `gitreant` 0.3.0-1 by name through the
-  `pool/` redirect to their release assets, and `gitreant --version`
-  printed `gitreant 0.3.0`. Asking for `runex` 0.1.99-1, which the index
-  does not hold, failed.
+  with it at the root. `https://pkg.shortarrow.jp` answers the same 302
+  over HTTPS, and following it saves a file whose SHA-256 matches the
+  release asset.
+- A deployed version serves the files it lists and no others. A file
+  without an extension is served with status 200 and its exact contents,
+  and a file the next version leaves out answers 404 within 10 seconds of
+  that deploy, while the files it keeps are still served.

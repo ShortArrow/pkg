@@ -25,7 +25,9 @@ current.
 - The sections are `Context`, `Decision`, `Alternatives`,
   `Open questions`, `Consequences` and `Verification`, in that order. A
   section with nothing to hold is left out. `Verification` holds
-  measurements with the date and conditions they were taken under.
+  the measurements the decision rests on, each with the conditions it
+  was taken under, such as the image and the tool versions, and no
+  date, time or commit: git history records when it was taken.
 - A record moves from `Draft` to `Accepted` only when `Open questions`
   is empty.
 - When a decision changes, its record is rewritten in place, whatever
@@ -42,6 +44,10 @@ current.
   over a chain of records, and a reader would have to follow every
   `Superseded by` link to learn it. The text of every earlier version
   is already kept in git history.
+- Dating each measurement in `Verification`, with the commit and the
+  time it was taken. The section read as a log of when things were
+  tried rather than the facts the decision rests on, and git history
+  already records when each was written.
 
 ## Consequences
 
